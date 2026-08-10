@@ -433,7 +433,7 @@ export default function MissionControl() {
             O
           </span>
           <div>
-            <p className="eyebrow">INCIDENT RESPONSE / A6</p>
+            <p className="eyebrow">OPTIMIZER · LOOPED CITY</p>
             <h1>재난 5분 전 <span>옵티마이저</span></h1>
           </div>
         </div>
@@ -453,7 +453,7 @@ export default function MissionControl() {
         <button className="connection-button" onClick={() => { setSettingsTab("model"); setSettingsOpen(true); }}>
           <span className={`connection-dot ${connected ? "online" : ""}`} />
           <span>
-            <small>{connected ? providerLabels[llmConfig.provider] : "LOCAL AI"}</small>
+            <small>{connected ? providerLabels[llmConfig.provider] : "MY MODEL"}</small>
             {connected ? llmConfig.model : "모델 연결"}
           </span>
           <b aria-hidden="true">⚙</b>
@@ -464,19 +464,19 @@ export default function MissionControl() {
         <section className="operation-column" aria-label="작전 보드">
           <section className="briefing-panel">
             <div className="briefing-copy">
-              <p className="signal-label"><span /> PRIORITY RED · 중앙 발전소</p>
-              <h2>폭발까지 남은 시간</h2>
+              <p className="signal-label"><span /> 긴급 브리핑 · 중앙 발전소</p>
+              <h2>도시는 5분 뒤 멈춥니다.</h2>
               <div className="countdown" aria-label="5분 남음">
                 05<span>:</span>00
               </div>
               <p>
-                예산 <strong>100</strong> 안에서 전략 카드 3장을 선택하세요.
-                세 번의 루프 동안 이전 결과를 기억하는 AI와 도시 대피망을 개선합니다.
+                세 장의 카드, 세 번의 타임루프. 예산 <strong>100</strong> 안에서
+                도시의 다음 5분을 다시 설계하세요.
               </p>
               <div className="briefing-tags">
-                <span>2–4인 협력</span>
-                <span>3회 타임루프</span>
-                <span>목표 대피율 90%</span>
+                <span>2–4인 플레이</span>
+                <span>3개의 타임루프</span>
+                <span>목표 · 대피율 90%</span>
               </div>
             </div>
 
@@ -509,7 +509,7 @@ export default function MissionControl() {
               </button>
               <div className="map-status">
                 <span className="pulse" />
-                LIVE NETWORK
+                도시 네트워크 · 실시간
               </div>
               <div className="map-legend">
                 <span><i className="legend-safe" /> 정상</span>
@@ -522,9 +522,9 @@ export default function MissionControl() {
           <section className="strategy-section">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">TACTICAL LOADOUT</p>
-                <h2>전략 카드 선택</h2>
-                <p>카드 3장을 조합하세요. 선택은 루프 실행 후 변경할 수 있습니다.</p>
+                <p className="eyebrow">MAKE YOUR MOVE</p>
+                <h2>이번 루프의 선택</h2>
+                <p>서로 다른 대가를 가진 카드 세 장으로 최선의 조합을 만드세요.</p>
               </div>
               <div className={`budget-meter ${totalCost > 100 ? "over" : ""}`}>
                 <span>작전 예산</span>
@@ -630,20 +630,20 @@ export default function MissionControl() {
               <span>O</span>
             </div>
             <div>
-              <p>TACTICAL AI AGENT</p>
-              <h2>옵티마이저</h2>
+              <p>AI STORY GUIDE</p>
+              <h2>옵티마이저와 대화</h2>
             </div>
             <button
               className="prompt-stack-button"
               onClick={() => { setSettingsTab("story"); setSettingsOpen(true); }}
             >
-              PROMPTS
+              프롬프트
             </button>
-            <span className="agent-state"><i /> ONLINE</span>
+            <span className="agent-state"><i /> 연결됨</span>
           </div>
 
           <div className="objective-card">
-            <span>현재 목표</span>
+            <span>이번 장면</span>
             <strong>{loop === 1 ? "직관적 대응" : loop === 2 ? "데이터 분석과 수정" : "독립적 최적화"}</strong>
             <p>
               {loop === 1
@@ -655,7 +655,7 @@ export default function MissionControl() {
           </div>
 
           <div className="chat-log" aria-live="polite">
-            <div className="system-chip">암호화 채널 · LOOP {loop}</div>
+            <div className="system-chip">Loop {loop} · story channel</div>
             {messages.map((message) => (
               <div className={`message ${message.role}`} key={message.id}>
                 {message.role === "assistant" && <span>OPT</span>}
@@ -675,14 +675,14 @@ export default function MissionControl() {
           </div>
 
           <div className="quick-prompts">
-            {["현재 병목은?", "카드 조합 추천", "파레토란?"].map((prompt) => (
+            {["이야기 이어가기", "지금 가장 위험한 곳", "전략 힌트"].map((prompt) => (
               <button key={prompt} onClick={() => setDraft(prompt)}>{prompt}</button>
             ))}
           </div>
 
           <form className="chat-composer" onSubmit={submitMessage}>
             <div className="composer-mode-row">
-              <label htmlFor="commander-message">옵티마이저에게 질문</label>
+              <label htmlFor="commander-message">메시지</label>
               <span>
                 <button type="button" className={chatMode === "story" ? "active" : ""} onClick={() => setChatMode("story")}>STORY</button>
                 <button type="button" className={chatMode === "ooc" ? "active" : ""} onClick={() => setChatMode("ooc")}>OOC</button>

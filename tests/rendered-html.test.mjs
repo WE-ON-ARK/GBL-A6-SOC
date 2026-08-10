@@ -19,8 +19,8 @@ test("renders the Optimizer mission interface", async () => {
   const html = await response.text();
   assert.match(html, /재난 5분 전/);
   assert.match(html, /옵티마이저/);
-  assert.match(html, /전략 카드 선택/);
-  assert.match(html, /PROMPTS/);
+  assert.match(html, /이번 루프의 선택/);
+  assert.match(html, /프롬프트/);
   assert.match(html, /STORY/);
   assert.match(html, /OOC/);
   assert.doesNotMatch(html, /codex-preview/);

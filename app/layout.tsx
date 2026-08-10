@@ -33,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "재난 5분 전, 옵티마이저",
       description,
       type: "website",
-      images: [{ url: image, width: 1731, height: 909, alt: "재난 5분 전, 옵티마이저" }],
+      images: [{ url: image, width: 1733, height: 907, alt: "재난 5분 전, 옵티마이저" }],
     },
     twitter: {
       card: "summary_large_image",
@@ -45,7 +45,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#07100f",
+  themeColor: "#0f1012",
   colorScheme: "dark",
 };
 
