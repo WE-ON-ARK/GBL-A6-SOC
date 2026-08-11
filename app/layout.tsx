@@ -26,8 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     icons: {
-      icon: "/favicon.svg",
-      shortcut: "/favicon.svg",
+      icon: "/optimizer-mark.svg",
+      shortcut: "/optimizer-mark.svg",
     },
     openGraph: {
       title: "재난 5분 전, 옵티마이저",
@@ -45,15 +45,22 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0f1012",
-  colorScheme: "dark",
+  themeColor: "#f5f5f7",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("optimizer-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){}`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

@@ -161,7 +161,7 @@ const initialMessages: ChatMessage[] = [
     id: "intro",
     role: "assistant",
     content:
-      "재난대응 AI ‘옵티마이저’입니다. 첫 루프에서는 카드의 비용과 기능만 보고 3장을 선택하세요. 실패는 탈락이 아니라 다음 판단을 위한 데이터입니다.",
+      "지금은 API 키 없이 작동하는 로컬 데모 모드입니다. 정해진 분석 규칙으로 카드와 병목을 안내하며, 실제 생성형 AI 대화는 우측 상단 ‘모델 연결’에서 API 키를 연결한 뒤 시작됩니다.",
   },
 ];
 
@@ -264,8 +264,9 @@ export default function MissionControl() {
   const [settingsTab, setSettingsTab] = useState<"model" | "story">("model");
   const [chatMode, setChatMode] = useState<"story" | "ooc">("story");
   const [reportOpen, setReportOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [llmConfig, setLlmConfig] = useState<LlmConfig>(defaultConfig);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatLogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -277,8 +278,29 @@ export default function MissionControl() {
   }, []);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const activeTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+    setTheme(activeTheme);
+  }, []);
+
+  useEffect(() => {
+    const log = chatLogRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
   }, [messages, sending]);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    try {
+      window.localStorage.setItem("optimizer-theme", nextTheme);
+    } catch {
+      // The active theme still applies when persistent storage is unavailable.
+    }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+      "content",
+      nextTheme === "dark" ? "#000000" : "#f5f5f7",
+    );
+  };
 
   const selectedCards = useMemo(
     () => strategies.filter((card) => selected.includes(card.id)),
@@ -430,10 +452,10 @@ export default function MissionControl() {
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true">
-            O
+            <img src="/optimizer-mark.svg" alt="" />
           </span>
           <div>
-            <p className="eyebrow">OPTIMIZER · LOOPED CITY</p>
+            <p className="eyebrow">도시 재난 대응 시뮬레이션</p>
             <h1>재난 5분 전 <span>옵티마이저</span></h1>
           </div>
         </div>
@@ -450,28 +472,40 @@ export default function MissionControl() {
           ))}
         </div>
 
-        <button className="connection-button" onClick={() => { setSettingsTab("model"); setSettingsOpen(true); }}>
-          <span className={`connection-dot ${connected ? "online" : ""}`} />
-          <span>
-            <small>{connected ? providerLabels[llmConfig.provider] : "MY MODEL"}</small>
-            {connected ? llmConfig.model : "모델 연결"}
-          </span>
-          <b aria-hidden="true">⚙</b>
-        </button>
+        <div className="toolbar-actions">
+          <button
+            className="theme-toggle"
+            type="button"
+            aria-label={theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
+            aria-pressed={theme === "dark"}
+            onClick={toggleTheme}
+          >
+            <span aria-hidden="true">{theme === "dark" ? "☀︎" : "☾"}</span>
+            <small>{theme === "dark" ? "라이트" : "다크"}</small>
+          </button>
+          <button className="connection-button" onClick={() => { setSettingsTab("model"); setSettingsOpen(true); }}>
+            <span className={`connection-dot ${connected ? "online" : ""}`} />
+            <span>
+              <small>{connected ? "AI 연결됨" : "로컬 데모"}</small>
+              {connected ? llmConfig.model : "모델 연결"}
+            </span>
+            <b aria-hidden="true">⚙</b>
+          </button>
+        </div>
       </header>
 
       <div className="workspace-grid">
         <section className="operation-column" aria-label="작전 보드">
           <section className="briefing-panel">
             <div className="briefing-copy">
-              <p className="signal-label"><span /> 긴급 브리핑 · 중앙 발전소</p>
-              <h2>도시는 5분 뒤 멈춥니다.</h2>
+              <p className="signal-label"><span /> 실시간 사고 브리핑 · 중앙 전력망</p>
+              <h2>도시는 5분 뒤<br /><span>멈춥니다.</span></h2>
               <div className="countdown" aria-label="5분 남음">
                 05<span>:</span>00
               </div>
               <p>
-                세 장의 카드, 세 번의 타임루프. 예산 <strong>100</strong> 안에서
-                도시의 다음 5분을 다시 설계하세요.
+                세 장의 카드와 세 번의 타임루프.<br />
+                예산 <strong>100</strong> 안에서 도시의 다음 5분을 다시 설계하세요.
               </p>
               <div className="briefing-tags">
                 <span>2–4인 플레이</span>
@@ -522,8 +556,8 @@ export default function MissionControl() {
           <section className="strategy-section">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">MAKE YOUR MOVE</p>
-                <h2>이번 루프의 선택</h2>
+                <p className="eyebrow">전략 선택</p>
+                <h2>이번 루프의 <em>선택</em></h2>
                 <p>서로 다른 대가를 가진 카드 세 장으로 최선의 조합을 만드세요.</p>
               </div>
               <div className={`budget-meter ${totalCost > 100 ? "over" : ""}`}>
@@ -627,10 +661,10 @@ export default function MissionControl() {
         <aside className="advisor-panel" aria-label="AI 옵티마이저 대화">
           <div className="advisor-header">
             <div className="agent-avatar" aria-hidden="true">
-              <span>O</span>
+              <img src="/optimizer-mark.svg" alt="" />
             </div>
             <div>
-              <p>AI STORY GUIDE</p>
+              <p>{connected ? "생성형 AI 스토리 가이드" : "규칙 기반 스토리 가이드"}</p>
               <h2>옵티마이저와 대화</h2>
             </div>
             <button
@@ -639,7 +673,9 @@ export default function MissionControl() {
             >
               프롬프트
             </button>
-            <span className="agent-state"><i /> 연결됨</span>
+            <span className={`agent-state ${connected ? "online" : "local"}`}>
+              <i /> {connected ? "AI 연결됨" : "로컬 데모"}
+            </span>
           </div>
 
           <div className="objective-card">
@@ -654,8 +690,8 @@ export default function MissionControl() {
             </p>
           </div>
 
-          <div className="chat-log" aria-live="polite">
-            <div className="system-chip">Loop {loop} · story channel</div>
+          <div className="chat-log" ref={chatLogRef} aria-live="polite">
+            <div className="system-chip">Loop {loop} · 스토리</div>
             {messages.map((message) => (
               <div className={`message ${message.role}`} key={message.id}>
                 {message.role === "assistant" && <span>OPT</span>}
@@ -671,7 +707,6 @@ export default function MissionControl() {
                 <div><small>옵티마이저</small><p><i /><i /><i /></p></div>
               </div>
             )}
-            <div ref={chatEndRef} />
           </div>
 
           <div className="quick-prompts">

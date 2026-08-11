@@ -19,7 +19,11 @@ test("renders the Optimizer mission interface", async () => {
   const html = await response.text();
   assert.match(html, /재난 5분 전/);
   assert.match(html, /옵티마이저/);
-  assert.match(html, /이번 루프의 선택/);
+  assert.match(html, /이번 루프의.*선택/);
+  assert.match(html, /로컬 데모/);
+  assert.match(html, /API 키 없이 작동하는 로컬 데모 모드/);
+  assert.match(html, /다크 모드로 전환/);
+  assert.match(html, /optimizer-mark\.svg/);
   assert.match(html, /프롬프트/);
   assert.match(html, /STORY/);
   assert.match(html, /OOC/);

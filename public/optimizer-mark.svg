@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title description">
+  <title id="title">옵티마이저 마크</title>
+  <desc id="description">연결된 경로와 최적의 선택 지점을 나타내는 심볼</desc>
+  <rect width="48" height="48" rx="14" fill="#0A84FF"/>
+  <path d="M13 32.5 21.2 24l6.2 5.4L35 16" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="13" cy="32.5" r="3.2" fill="#fff"/>
+  <circle cx="21.2" cy="24" r="3.2" fill="#fff"/>
+  <circle cx="27.4" cy="29.4" r="3.2" fill="#fff"/>
+  <circle cx="35" cy="16" r="4" fill="#fff"/>
+</svg>
