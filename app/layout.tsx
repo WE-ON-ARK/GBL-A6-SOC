@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // Keep the local fallback when proxy headers are malformed.
   }
   const description =
-    "병목, 확률, 파레토 지표로 최선의 도시 대피 전략을 설계하는 AI 타임루프 챌린지";
+    "세 장의 카드와 세 번의 타임루프로 도시의 다음 5분을 설계하는 재난 대응 시뮬레이션";
   const image = new URL("/og.png", origin).toString();
 
   return {
@@ -25,6 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | 옵티마이저",
     },
     description,
+    alternates: { canonical: "/" },
     icons: {
       icon: "/optimizer-mark.svg",
       shortcut: "/optimizer-mark.svg",
@@ -33,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: "재난 5분 전, 옵티마이저",
       description,
       type: "website",
-      images: [{ url: image, width: 1733, height: 907, alt: "재난 5분 전, 옵티마이저" }],
+      images: [{ url: image, width: 1731, height: 909, alt: "재난 5분 전 옵티마이저 — 도시 네트워크와 5분 카운트다운" }],
     },
     twitter: {
       card: "summary_large_image",
