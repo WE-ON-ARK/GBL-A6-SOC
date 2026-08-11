@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
   const description =
     "세 장의 카드와 세 번의 타임루프로 도시의 다음 5분을 설계하는 재난 대응 시뮬레이션";
-  const image = new URL("/og.png", origin).toString();
+  const image = new URL("/social-preview-v2.png", origin).toString();
 
   return {
     metadataBase: new URL(origin),

@@ -25,7 +25,7 @@ test("renders the Optimizer mission interface", async () => {
   assert.match(html, /다크 모드로 전환/);
   assert.match(html, /optimizer-mark\.svg/);
   assert.match(html, /세 장의 카드와 세 번의 타임루프/);
-  assert.match(html, /og\.png/);
+  assert.match(html, /social-preview-v2\.png/);
   assert.match(html, /프롬프트/);
   assert.match(html, /STORY/);
   assert.match(html, /OOC/);
