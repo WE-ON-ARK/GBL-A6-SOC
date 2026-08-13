@@ -331,7 +331,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .map-node.shelter { right: 8%; bottom: 15%; }
 .map-node.critical { border-color: rgba(215, 0, 21, 0.22); background: rgba(255, 240, 240, 0.82); }
 .map-node.critical i { color: var(--red); }
-.map-node.critical::after { position: absolute; left: 50%; bottom: -12px; width: 36px; height: 3px; border-radius: 999px; content: ""; background: var(--red); transform: translateX(-50%); }
 .map-status { position: absolute; top: 20px; left: 20px; display: flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 12px; font-weight: 560; }
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 .map-legend { position: absolute; right: 18px; bottom: 17px; display: flex; gap: 12px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.88); border-radius: 999px; color: var(--secondary); background: rgba(255, 255, 255, 0.66); backdrop-filter: blur(12px); font-size: 11px; }
