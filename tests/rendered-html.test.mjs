@@ -61,6 +61,8 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /incidentVariants/);
   assert.match(client, /새로고침 시 재편성/);
   assert.match(client, /loop-incident-card/);
+  assert.match(client, /판단 포인트/);
+  assert.match(client, /텍스트 생성·대화용 LLM만 표시/);
   assert.match(client, /connectionVerified/);
   assert.match(client, /availableModels/);
   assert.match(client, /API 키 검증 및 모델 불러오기/);
@@ -78,6 +80,8 @@ test("ships simulation and model generation controls", async () => {
   assert.match(route, /output_config/);
   assert.match(capabilitiesRoute, /Gemini API/);
   assert.match(capabilitiesRoute, /maxTemperature/);
+  assert.match(capabilitiesRoute, /isLanguageModelId/);
+  assert.match(capabilitiesRoute, /nonLanguageModelPattern/);
   assert.match(capabilitiesRoute, /api\.openai\.com\/v1\/models/);
   assert.match(capabilitiesRoute, /api\.anthropic\.com\/v1\/models/);
 });

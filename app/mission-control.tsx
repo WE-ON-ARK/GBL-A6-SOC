@@ -1224,13 +1224,23 @@ export default function MissionControl() {
           </section>
 
           <section className="loop-incident-card" aria-label={`Loop ${loop} 돌발 변수`}>
-            <span>이번 Loop 변수</span>
-            <div>
-              <strong>{currentIncident.title}</strong>
-              <small>Loop {loop} · 새로고침 시 재편성</small>
+            <div className="incident-meta">
+              <span>이번 Loop 변수</span>
+              <strong><i aria-hidden="true" />LIVE · LOOP {loop}</strong>
+              <small>새로고침 시 재편성</small>
             </div>
-            <p>{currentIncident.description}</p>
-            <em>{currentIncident.hint}</em>
+            <div className="incident-title">
+              <span>이벤트</span>
+              <strong>{currentIncident.title}</strong>
+            </div>
+            <div className="incident-copy">
+              <span>현재 상황</span>
+              <p>{currentIncident.description}</p>
+            </div>
+            <div className="incident-focus">
+              <span>판단 포인트</span>
+              <p>{currentIncident.hint}</p>
+            </div>
           </section>
 
           <section className="strategy-section">
@@ -1658,7 +1668,7 @@ function LlmSettings({
                 {!draft.availableModels.length && <option value={draft.model}>API 키 검증 후 모델을 불러옵니다</option>}
                 {draft.availableModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
               </select>
-              <small>검증된 API 키로 실제 사용할 수 있는 모델만 표시합니다.</small>
+              <small>검증된 API 키로 사용할 수 있는 텍스트 생성·대화용 LLM만 표시합니다.</small>
             </label>
 
             <div className="generation-grid">

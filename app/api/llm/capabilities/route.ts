@@ -20,6 +20,17 @@ const curatedModels: Record<Exclude<Provider, "gemini">, ModelOption[]> = {
   compatible: [],
 };
 
+const nonLanguageModelPattern = /(embedding|rerank|moderation|guard|safety|audio|realtime|transcri(?:be|ption)|speech|tts|voice|image|imagen|video|veo|vision-only|computer-use|robotics|search|whisper|dall-e|sora)/i;
+
+function isLanguageModelId(id: string, provider: Provider) {
+  const normalized = id.toLowerCase().trim();
+  if (!normalized || nonLanguageModelPattern.test(normalized)) return false;
+  if (provider === "openai") return /^(gpt-|o\d|chatgpt-)/.test(normalized);
+  if (provider === "anthropic") return /^claude-/.test(normalized);
+  if (provider === "gemini") return /^(gemini-|gemma-)/.test(normalized);
+  return /(^|[\/:._-])(gpt|chatgpt|chat|instruct|claude|gemini|gemma|llama|mistral|mixtral|qwen|deepseek|command|phi|yi|glm|solar|exaone|falcon|olmo|dbrx|nemotron)(?:\d|[\/:._-]|$)/.test(normalized);
+}
+
 function openAiCapabilities(id: string): ModelOption {
   const lower = id.toLowerCase();
   const supportsTemperature = !/^(o\d|gpt-5)/.test(lower);
@@ -40,7 +51,10 @@ export async function POST(request: Request) {
       const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", { headers: { "x-goog-api-key": apiKey }, cache: "no-store" });
       const data = await response.json() as { models?: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[]; thinking?: boolean; maxTemperature?: number; outputTokenLimit?: number }>; error?: { message?: string } };
       if (!response.ok) throw new Error(data.error?.message || `Gemini 키 검증 실패 (${response.status})`);
-      const models = (data.models ?? []).filter((model) => model.name && model.supportedGenerationMethods?.includes("generateContent")).map((model) => {
+      const models = (data.models ?? []).filter((model) => {
+        const id = model.name?.replace(/^models\//, "") ?? "";
+        return isLanguageModelId(id, "gemini") && model.supportedGenerationMethods?.includes("generateContent");
+      }).map((model) => {
         const id = model.name!.replace(/^models\//, "");
         const generation = Number(id.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] || 0);
         const temperature = typeof model.maxTemperature === "number" && generation < 3.5;
@@ -53,13 +67,12 @@ export async function POST(request: Request) {
       const response = await fetch("https://api.openai.com/v1/models", { headers: { authorization: `Bearer ${apiKey}` }, cache: "no-store" });
       const data = await response.json() as { data?: Array<{ id?: string }>; error?: { message?: string } };
       if (!response.ok) throw new Error(data.error?.message || `OpenAI 키 검증 실패 (${response.status})`);
-      const available = new Set((data.data ?? []).map((model) => model.id));
-      const curated = curatedModels.openai.filter((model) => available.has(model.id));
-      const models = curated.length ? curated : [...available]
-        .filter((id): id is string => Boolean(id) && /^(gpt-|o\d)/.test(id!) && !/(audio|realtime|transcribe|tts|image|search|moderation)/.test(id!))
+      const available = new Set((data.data ?? []).map((model) => model.id).filter((id): id is string => Boolean(id) && isLanguageModelId(id!, "openai")));
+      const curated = new Map(curatedModels.openai.map((model) => [model.id, model]));
+      const models = [...available]
         .sort()
-        .slice(0, 40)
-        .map(openAiCapabilities);
+        .slice(0, 80)
+        .map((id) => curated.get(id) ?? openAiCapabilities(id));
       return NextResponse.json({ verified: true, models, source: "OpenAI API" });
     }
 
@@ -67,9 +80,9 @@ export async function POST(request: Request) {
       const response = await fetch("https://api.anthropic.com/v1/models?limit=1000", { headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }, cache: "no-store" });
       const data = await response.json() as { data?: Array<{ id?: string; display_name?: string }>; error?: { message?: string } };
       if (!response.ok) throw new Error(data.error?.message || `Anthropic 키 검증 실패 (${response.status})`);
-      const available = new Map((data.data ?? []).map((model) => [model.id, model.display_name]));
-      const curated = curatedModels.anthropic.filter((model) => available.has(model.id));
-      const models = curated.length ? curated : (data.data ?? []).filter((model) => model.id).map((model) => ({ id: model.id!, label: model.display_name || model.id!, temperature: false, reasoning: false, maxTemperature: 1, maxOutputTokens: null }));
+      const available = new Map((data.data ?? []).filter((model) => model.id && isLanguageModelId(model.id, "anthropic")).map((model) => [model.id, model.display_name]));
+      const curated = new Map(curatedModels.anthropic.map((model) => [model.id, model]));
+      const models = [...available].map(([id, displayName]) => curated.get(id) ?? ({ id, label: displayName || id, temperature: false, reasoning: false, maxTemperature: 1, maxOutputTokens: null }));
       return NextResponse.json({ verified: true, models, source: "Anthropic API" });
     }
 
@@ -78,7 +91,7 @@ export async function POST(request: Request) {
     const response = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${apiKey}` }, cache: "no-store" });
     const data = await response.json() as { data?: Array<{ id?: string }>; error?: { message?: string } };
     if (!response.ok) throw new Error(data.error?.message || `호환 API 키 검증 실패 (${response.status})`);
-    const models = (data.data ?? []).filter((model) => model.id).map((model) => ({ id: model.id!, label: model.id!, temperature: true, reasoning: false, maxTemperature: 2, maxOutputTokens: null }));
+    const models = (data.data ?? []).filter((model) => model.id && isLanguageModelId(model.id, "compatible")).map((model) => ({ id: model.id!, label: model.id!, temperature: true, reasoning: false, maxTemperature: 2, maxOutputTokens: null }));
     return NextResponse.json({ verified: true, models, source: "호환 API" });
   } catch (error) {
     return NextResponse.json({ verified: false, error: error instanceof Error ? error.message.slice(0, 240) : "API 키를 검증하지 못했습니다." }, { status: 502 });
