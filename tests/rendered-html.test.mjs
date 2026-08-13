@@ -51,6 +51,14 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /ResizeObserver/);
   assert.doesNotMatch(client, /className="road road-/);
   assert.match(client, /function dominates/);
+  assert.match(client, /function evaluatePortfolios/);
+  assert.match(client, /function recommendPortfolios/);
+  assert.match(client, /currentRecommendations/);
+  assert.match(client, /latestPortfolioEvaluations/);
+  assert.doesNotMatch(client, /const portfolioOutcomes =/);
+  assert.match(client, /recommendations: currentRecommendations/);
+  assert.match(client, /전체 유효 조합/);
+  assert.match(route, /recommendations가 있으면/);
   assert.match(client, /최대 출력 토큰/);
   assert.match(client, /사고 레벨/);
   assert.match(client, /PROMPT_VERSION = 3/);

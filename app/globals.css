@@ -452,6 +452,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .flow-analysis p { margin: 0; color: var(--secondary); font-size: 12px; line-height: 1.55; }
 .pareto-plot { position: relative; height: 112px; margin-top: 14px; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
 .pareto-plot .dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #b0b0b5; }
+.pareto-plot .dot.frontier { background: rgba(0, 122, 255, 0.55); }
 .pareto-plot .dot.current { width: 11px; height: 11px; background: var(--blue); }
 .axis-x, .axis-y { position: absolute; color: var(--tertiary); font-size: 11px; }
 .axis-x { right: 2px; bottom: -16px; }

@@ -165,9 +165,10 @@ const DEFAULT_MASTER_PROMPT = `# 재난 5분 전, 옵티마이저
 ## 카드 상담
 
 1. 현재 선택과 남은 예산을 짧게 확인한다.
-2. 성격이 다른 후보 또는 조합 2~3개를 **비용 / 효과 / 시너지 / 취약점 / 포기하는 가치**로 비교한다.
-3. 이번 회차 돌발 변수가 카드 효율에 미치는 영향을 설명한다.
-4. 하나의 정답을 명령하지 않고 {{user}}가 우선순위를 고를 수 있는 질문 하나로 마친다.
+2. CURRENT MISSION STATE의 **recommendations**가 있으면 전체 유효 조합을 계산한 결과이므로 이를 추천의 수치 기준으로 사용한다.
+3. 성격이 다른 후보 또는 조합 2~3개를 **비용 / 효과 / 시너지 / 취약점 / 포기하는 가치**로 비교한다.
+4. 이번 회차 돌발 변수가 카드 효율에 미치는 영향을 설명한다.
+5. 하나의 정답을 명령하지 않고 {{user}}가 우선순위를 고를 수 있는 질문 하나로 마친다.
 
 ## Loop 종료 브리핑
 
@@ -388,6 +389,17 @@ function clamp(value: number, min: number, max: number) {
 
 type Outcome = Omit<LoopResult, "loop" | "paretoOptimal" | "dominatedBy" | "incidentId" | "incidentTitle">;
 
+type PortfolioEvaluation = {
+  cards: Strategy[];
+  outcome: Outcome;
+  dominatedBy: number;
+  paretoOptimal: boolean;
+};
+
+type PortfolioRecommendation = PortfolioEvaluation & {
+  label: "균형 추천" | "대피 우선" | "피해·형평성 우선";
+};
+
 const SCENARIO_COUNT = 1200;
 const ROUND_SECONDS = 5 * 60;
 const ROUND_TIMER_KEY = "optimizer-round-timer";
@@ -522,16 +534,30 @@ function incidentFor(seed: number, loop: number) {
   return incidentVariants[order[(loop - 1) % order.length]];
 }
 
+const incidentResponseBoosts: Record<string, { flow?: number; stability?: number; damage?: number; equity?: number; bottleneck?: number }> = {
+  aftershock: { stability: 2, bottleneck: 9 },
+  "signal-noise": { flow: 3, stability: 4, bottleneck: 3 },
+  "hospital-surge": { stability: 3, damage: 7 },
+  "south-flood": { flow: 3, damage: 2, equity: 7 },
+  "fuel-shortage": { stability: 4, damage: 4 },
+  "civilian-surge": { flow: 5, stability: 2, bottleneck: 5 },
+  "clear-window": { stability: 2, damage: 3, equity: 2 },
+  "rumor-wave": { stability: 3, equity: 4, bottleneck: 3 },
+  "bridge-crack": { flow: 3, equity: 2, bottleneck: 8 },
+};
+
 function extractUserName(userNotes: string) {
   const match = userNotes.match(/(?:지휘관\s*)?(?:이름|성명|호칭|name)\s*[:：=-]\s*([^\n,;]{1,24})/i);
   return match?.[1]?.trim() || "지휘관님";
 }
 
 function calculateOutcome(chosen: Strategy[], incident: IncidentVariant | null = null, seed = 0): Outcome {
-  const flow = chosen.reduce((sum, card) => sum + card.flow, 0);
-  const stability = chosen.reduce((sum, card) => sum + card.stability, 0);
-  const damageProtection = chosen.reduce((sum, card) => sum + card.damage, 0);
-  const equity = chosen.reduce((sum, card) => sum + card.equity, 0);
+  const respondsToIncident = Boolean(incident && chosen.some((card) => card.id === incident.favoredCard));
+  const responseBoost = respondsToIncident && incident ? incidentResponseBoosts[incident.id] ?? {} : {};
+  const flow = chosen.reduce((sum, card) => sum + card.flow, 0) + (responseBoost.flow ?? 0);
+  const stability = chosen.reduce((sum, card) => sum + card.stability, 0) + (responseBoost.stability ?? 0);
+  const damageProtection = chosen.reduce((sum, card) => sum + card.damage, 0) + (responseBoost.damage ?? 0);
+  const equity = chosen.reduce((sum, card) => sum + card.equity, 0) + (responseBoost.equity ?? 0);
   const hasTunnel = chosen.some((card) => card.id === "tunnel");
   const hasSignal = chosen.some((card) => card.id === "signal");
   const breaksBottleneck = hasTunnel || hasSignal;
@@ -540,10 +566,10 @@ function calculateOutcome(chosen: Strategy[], incident: IncidentVariant | null =
   const hasCriticalPair = hasTunnel && hasSignal;
   const incidentFlow = incident?.flowShift ?? 0;
   const incidentVariability = incident?.variabilityShift ?? 0;
-  const bottleneckCapacity = clamp(42 + (incident?.bottleneckShift ?? 0) + (hasTunnel ? 26 : 0) + (hasSignal ? 14 : 0) + (hasCriticalPair ? 8 : 0), 30, 99);
+  const bottleneckCapacity = clamp(42 + (incident?.bottleneckShift ?? 0) + (hasTunnel ? 26 : 0) + (hasSignal ? 14 : 0) + (hasCriticalPair ? 8 : 0) + (responseBoost.bottleneck ?? 0), 30, 99);
   const meanEvacuation = clamp(
     52 + flow * 0.72 + (bottleneckCapacity - 42) * 0.27 -
-      (hasTransportWithoutBottleneck ? 9 : 0) + incidentFlow + (chosen.some((card) => card.id === incident?.favoredCard) ? 1.5 : 0),
+      (hasTransportWithoutBottleneck ? 9 : 0) + incidentFlow,
     48,
     97,
   );
@@ -617,7 +643,66 @@ function dominates(candidate: Outcome, target: Outcome) {
   return noWorse && strictlyBetter;
 }
 
-const portfolioOutcomes = validPortfolios().map((portfolio) => calculateOutcome(portfolio));
+function evaluatePortfolios(incident: IncidentVariant, seed: number): PortfolioEvaluation[] {
+  const evaluations = validPortfolios().map((cards) => ({ cards, outcome: calculateOutcome(cards, incident, seed) }));
+  return evaluations.map((evaluation) => {
+    const dominatedBy = evaluations.filter((candidate) => dominates(candidate.outcome, evaluation.outcome)).length;
+    return { ...evaluation, dominatedBy, paretoOptimal: dominatedBy === 0 };
+  });
+}
+
+function recommendPortfolios(evaluations: PortfolioEvaluation[]): PortfolioRecommendation[] {
+  if (!evaluations.length) return [];
+  const candidates = evaluations.filter((evaluation) => evaluation.paretoOptimal);
+  const candidateKeys = new Set(candidates.map(({ outcome }) => outcome.cards.join("-")));
+  const pool = [...candidates, ...evaluations.filter(({ outcome }) => !candidateKeys.has(outcome.cards.join("-")))];
+  const values = {
+    evacuation: evaluations.map(({ outcome }) => outcome.evacuation),
+    chance90: evaluations.map(({ outcome }) => outcome.chance90),
+    variability: evaluations.map(({ outcome }) => outcome.variability),
+    damage: evaluations.map(({ outcome }) => outcome.damage),
+    equityGap: evaluations.map(({ outcome }) => outcome.equityGap),
+  };
+  const scale = (value: number, samples: number[], higherIsBetter = true) => {
+    const min = Math.min(...samples);
+    const max = Math.max(...samples);
+    const normalized = max === min ? 1 : (value - min) / (max - min);
+    return higherIsBetter ? normalized : 1 - normalized;
+  };
+  const profiles: Array<{ label: PortfolioRecommendation["label"]; score: (evaluation: PortfolioEvaluation) => number }> = [
+    {
+      label: "균형 추천",
+      score: ({ outcome }) =>
+        scale(outcome.evacuation, values.evacuation) * 0.24 +
+        scale(outcome.chance90, values.chance90) * 0.24 +
+        scale(outcome.variability, values.variability, false) * 0.16 +
+        scale(outcome.damage, values.damage, false) * 0.2 +
+        scale(outcome.equityGap, values.equityGap, false) * 0.16,
+    },
+    {
+      label: "대피 우선",
+      score: ({ outcome }) =>
+        scale(outcome.evacuation, values.evacuation) * 0.42 +
+        scale(outcome.chance90, values.chance90) * 0.4 +
+        scale(outcome.variability, values.variability, false) * 0.18,
+    },
+    {
+      label: "피해·형평성 우선",
+      score: ({ outcome }) =>
+        scale(outcome.damage, values.damage, false) * 0.42 +
+        scale(outcome.equityGap, values.equityGap, false) * 0.38 +
+        scale(outcome.variability, values.variability, false) * 0.2,
+    },
+  ];
+  const used = new Set<string>();
+  return profiles.flatMap(({ label, score }) => {
+    const ranked = [...pool].sort((a, b) => score(b) - score(a));
+    const choice = ranked.find(({ outcome }) => !used.has(outcome.cards.join("-"))) ?? ranked[0];
+    if (!choice) return [];
+    used.add(choice.outcome.cards.join("-"));
+    return [{ ...choice, label }];
+  });
+}
 
 function paretoPosition(outcome: Outcome) {
   return {
@@ -627,9 +712,10 @@ function paretoPosition(outcome: Outcome) {
 }
 
 function simulate(loop: number, chosen: Strategy[], incident: IncidentVariant, seed: number): LoopResult {
-  const outcome = calculateOutcome(chosen, incident, seed + loop * 1009);
-  const incidentPortfolioOutcomes = validPortfolios().map((portfolio) => calculateOutcome(portfolio, incident, seed + loop * 1009));
-  const dominatedBy = incidentPortfolioOutcomes.filter((candidate) => dominates(candidate, outcome)).length;
+  const evaluationSeed = seed + loop * 1009;
+  const outcome = calculateOutcome(chosen, incident, evaluationSeed);
+  const incidentPortfolioOutcomes = evaluatePortfolios(incident, evaluationSeed);
+  const dominatedBy = incidentPortfolioOutcomes.filter((candidate) => dominates(candidate.outcome, outcome)).length;
   return { ...outcome, loop, dominatedBy, paretoOptimal: dominatedBy === 0, incidentId: incident.id, incidentTitle: incident.title };
 }
 
@@ -640,6 +726,7 @@ function localCoach(
   mode: "story" | "ooc",
   incident: IncidentVariant,
   userName: string,
+  recommendations: PortfolioRecommendation[],
 ) {
   const lower = message.toLowerCase();
   const hasBottleneckCard = selected.some((card) =>
@@ -649,18 +736,22 @@ function localCoach(
     ? selected.map((card) => `${card.name}(${card.cost}C)`).join(" · ")
     : "아직 선택한 카드가 없습니다";
   const greeting = userName === "지휘관님" ? userName : `${userName} 지휘관님`;
+  const recommendationText = recommendations.map(({ label, cards, outcome, paretoOptimal, dominatedBy }) => {
+    const cost = cards.reduce((sum, card) => sum + card.cost, 0);
+    const status = paretoOptimal ? "파레토 비지배" : `${dominatedBy}개 조합보다 열세`;
+    return `### ${label}\n\n**${cards.map((card) => card.name).join(" + ")}** · ${cost}C · ${status}\n\n대피율 ${outcome.evacuation}% · 90% 달성 ${outcome.chance90}% · 피해 ${outcome.damage}억 · 지역 격차 ${outcome.equityGap}%p`;
+  }).join("\n\n");
+  const balanced = recommendations[0];
 
   if (mode === "ooc") {
     return `알겠어요, ${greeting}. 방금 말씀은 등장인물의 대사나 사건으로 만들지 않고 이후 장면의 진행 방식과 설정 일관성에만 반영할게요. 외부 LLM을 연결하면 마스터 프롬프트·유저 노트와 함께 전체 프롬프트 스택에 적용됩니다.`;
   }
   if (lower.includes("스토리") || lower.includes("이어")) {
-    return "[현장 상황]\n관제실의 조명이 붉게 전환됩니다. 중앙 발전소에서 시작된 전력 불안정이 C-07 터널의 신호망까지 번지고, 벽면 지도 위 대피 흐름이 한 지점에서 가늘어집니다.\n\n[옵티마이저의 분석]\n“지휘관님, 수송 자원을 늘리기 전에 C-07 병목부터 풀어야 해요. 길목이 막힌 채 버스만 늘리면 사람들은 더 빠르게 병목 앞에 쌓이게 됩니다.”\n\n[결정이 필요한 것]\n터널 일방통행과 AI 신호 제어 중 병목에 얼마나 투자할지, 그리고 남은 한 장을 피해 방지와 지역 형평성 중 어디에 쓸지 정해 주세요. 어떤 가치를 먼저 지키고 싶으신가요?";
+    return `## 현장 상황\n\n${incident.description}\n\n## 옵티마이저의 분석\n\n“${greeting}, ${incident.hint} ${balanced ? `현재 ${validPortfolios().length}개 유효 조합을 비교한 균형안은 **${balanced.cards.map((card) => card.name).join(" + ")}**이에요.` : "현재 선택의 상충관계를 함께 살펴볼게요."}”\n\n## 결정이 필요한 것\n\n대피 속도와 피해·형평성 중 이번에는 어떤 가치를 먼저 지키고 싶으신가요?`;
   }
 
   if (lower.includes("추천") || lower.includes("카드") || lower.includes("선택") || lower.includes("힌트")) {
-    return hasBottleneckCard
-      ? `## 현재 선택\n\n${greeting}, 지금은 **${selectedNames}**을 골랐어요. 이번 변수는 **${incident.title}**이라 ${incident.hint}\n\nC-07 병목에는 대응하고 있으니 이제 남은 자원을 피해 방지와 지역 형평성 중 어디에 쓸지 함께 정해봐요.`
-      : `## 먼저 볼 위험\n\n${greeting}, 이번 변수는 **${incident.title}**이에요. ${incident.hint}\n\n현재 선택은 **${selectedNames}**입니다. 터널 일방통행(34C)은 간선 용량을 크게 늘리고, AI 신호 제어(22C)는 더 적은 비용으로 흐름을 개선해요. 병목에 한 장만 투자해 다른 위험도 챙길까요, 두 장으로 흐름을 확실히 열까요?`;
+    return `## ${incident.title} 기준 조합 분석\n\n${greeting}, 이번 이벤트를 반영해 예산 안의 **${validPortfolios().length}개 유효 조합 전체**를 같은 1,200개 시나리오로 비교했어요. 현재 선택은 **${selectedNames}**입니다.${hasBottleneckCard ? " 병목 대응은 포함되어 있어요." : " 병목 카드가 없는 조합은 수송 효과가 제한될 수 있어요."}\n\n${recommendationText}\n\n균형안과 목표별 대안은 서로 다른 가중치로 고른 결과라 하나의 절대 정답은 아니에요. **대피 성공 확률**과 **피해·지역 형평성** 중 무엇을 우선할지 말씀해 주시면 그 기준으로 한 조합까지 좁혀드릴게요.`;
   }
   if (lower.includes("파레토")) {
     return "지휘관님, 파레토 비지배 전략은 ‘모든 면에서 더 나은 다른 조합이 없는 선택’이에요. 완벽하다는 뜻은 아니고, 대피율을 더 올리려면 피해액이나 지역 격차 같은 다른 가치를 양보해야 한다는 뜻입니다. 이번에는 무엇을 조금 양보하더라도 꼭 지키고 싶은 지표가 무엇인지 정해 보세요.";
@@ -668,7 +759,7 @@ function localCoach(
   if (lower.includes("병목") || lower.includes("최소 절단")) {
     return "지휘관님, 현재 도시 전체 흐름을 제한하는 가장 좁은 길목은 C-07 중앙 터널이고 용량은 42예요. 이곳이 그대로면 다른 구간의 수송 능력을 늘려도 전체 대피 흐름은 크게 좋아지지 않습니다. 그래서 터널 일방통행이나 AI 신호 제어로 길목을 먼저 넓힌 뒤, 남은 카드로 피해나 형평성을 보완하는 편이 안전합니다.";
   }
-  return `${greeting}, Loop ${loop}의 변수는 **${incident.title}**이에요. “이 선택이 무엇을 개선하고, 대신 무엇을 포기하는가?”를 함께 볼게요. 현재 선택은 **${selectedNames}**입니다. 가장 지키고 싶은 지표 두 가지를 말씀해 주시면 그 기준으로 카드를 좁혀드릴게요.`;
+  return `${greeting}, Loop ${loop}의 변수는 **${incident.title}**이에요. ${balanced ? `전체 조합을 비교한 현재 균형안은 **${balanced.cards.map((card) => card.name).join(" + ")}**입니다.` : "선택의 상충관계를 함께 볼게요."} 현재 선택은 **${selectedNames}**예요. 가장 지키고 싶은 지표 두 가지를 말씀해 주시면 실제 시뮬레이션 결과로 후보를 좁혀드릴게요.`;
 }
 
 export default function MissionControl() {
@@ -862,9 +953,26 @@ export default function MissionControl() {
     [selected],
   );
   const currentIncident = useMemo(() => incidentFor(missionSeed, loop), [missionSeed, loop]);
+  const currentPortfolioEvaluations = useMemo(
+    () => evaluatePortfolios(currentIncident, missionSeed + loop * 1009),
+    [currentIncident, missionSeed, loop],
+  );
+  const currentRecommendations = useMemo(
+    () => recommendPortfolios(currentPortfolioEvaluations),
+    [currentPortfolioEvaluations],
+  );
   const userDisplayName = useMemo(() => extractUserName(llmConfig.userNotes), [llmConfig.userNotes]);
   const totalCost = selectedCards.reduce((sum, card) => sum + card.cost, 0);
   const latest = results.at(-1);
+  const latestIncident = latest
+    ? incidentVariants.find((incident) => incident.id === latest.incidentId) ?? currentIncident
+    : currentIncident;
+  const latestPortfolioEvaluations = useMemo(
+    () => latest
+      ? evaluatePortfolios(latestIncident, missionSeed + latest.loop * 1009)
+      : [],
+    [latest, latestIncident, missionSeed],
+  );
   const canDeploy = selected.length === 3 && totalCost <= 100;
   const connected = Boolean(llmConfig.connectionVerified && llmConfig.apiKey && llmConfig.model);
   const latestCards = latest
@@ -980,7 +1088,7 @@ export default function MissionControl() {
           {
             id: `local-${Date.now()}`,
             role: "assistant",
-            content: localCoach(text, loop, selectedCards, chatMode, currentIncident, userDisplayName),
+            content: localCoach(text, loop, selectedCards, chatMode, currentIncident, userDisplayName, currentRecommendations),
           },
         ]);
       }, 320);
@@ -1028,6 +1136,12 @@ export default function MissionControl() {
               cost: card.cost,
               category: card.category,
               description: card.description,
+            })),
+            recommendations: currentRecommendations.map(({ label, cards, outcome, paretoOptimal }) => ({
+              label,
+              cards: cards.map((card) => ({ id: card.id, name: card.name, cost: card.cost })),
+              outcome,
+              paretoOptimal,
             })),
             latest,
             history: results,
@@ -1293,7 +1407,7 @@ export default function MissionControl() {
                     <p className="eyebrow">UNLOCKED INTELLIGENCE</p>
                     <h3>Loop {latest.loop} 분석 리포트</h3>
                   </div>
-                  <span>C-07 최소 절단 확인</span>
+                  <span>{latest.incidentTitle} · 이벤트 반영</span>
                 </div>
                 <div className="metric-grid">
                   <Metric label="평균 대피율" value={`${latest.evacuation}%`} tone="mint" />
@@ -1322,12 +1436,13 @@ export default function MissionControl() {
                       <span>파레토 위치</span>
                       <small>{latest.paretoOptimal ? "비지배 전략" : `${latest.dominatedBy}개 조합에 지배됨`}</small>
                     </div>
-                    <div className="pareto-plot" aria-label="생존율과 피해액 파레토 그래프">
-                      {portfolioOutcomes.map((outcome) => (
+                    <div className="pareto-plot" aria-label={`${latest.incidentTitle} 조건의 생존율과 피해액 파레토 그래프`}>
+                      {latestPortfolioEvaluations.map(({ outcome, paretoOptimal }) => (
                         <i
-                          className={`dot ${outcome.cards.join("-") === latest.cards.join("-") ? "current" : ""}`}
+                          className={`dot ${paretoOptimal ? "frontier" : ""} ${outcome.cards.join("-") === latest.cards.join("-") ? "current" : ""}`}
                           key={outcome.cards.join("-")}
                           style={paretoPosition(outcome)}
+                          title={`${latest.incidentTitle} · ${outcome.cards.map((id) => strategies.find((card) => card.id === id)?.name ?? id).join(" + ")}`}
                         />
                       ))}
                       <span className="axis-y">생존율 ↑</span>
