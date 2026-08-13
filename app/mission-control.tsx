@@ -28,6 +28,10 @@ type LoopResult = {
   chance90: number;
   damage: number;
   equityGap: number;
+  bottleneckCapacity: number;
+  paretoOptimal: boolean;
+  dominatedBy: number;
+  scenarioCount: number;
   cards: string[];
 };
 
@@ -39,12 +43,15 @@ type ChatMessage = {
 };
 
 type Provider = "openai" | "anthropic" | "gemini" | "compatible";
+type ReasoningLevel = "none" | "low" | "medium" | "high";
 
 type LlmConfig = {
   provider: Provider;
   model: string;
   apiKey: string;
   baseUrl: string;
+  maxOutputTokens: number;
+  reasoningLevel: ReasoningLevel;
   rememberTab: boolean;
   masterPrompt: string;
   userNotes: string;
@@ -131,6 +138,8 @@ const defaultConfig: LlmConfig = {
   model: "gpt-5.6-terra",
   apiKey: "",
   baseUrl: "",
+  maxOutputTokens: 8192,
+  reasoningLevel: "medium",
   rememberTab: true,
   masterPrompt: `당신은 인터랙티브 재난 스릴러 「재난 5분 전, 옵티마이저」의 게임 마스터다.
 플레이어는 도시 재난대응본부의 지휘관이며, AI 옵티마이저만 이전 타임루프의 결과를 기억한다.
@@ -156,6 +165,13 @@ const modelPlaceholders: Record<Provider, string> = {
   compatible: "서버에서 제공하는 모델 ID",
 };
 
+const reasoningLabels: Record<ReasoningLevel, string> = {
+  none: "사용 안 함",
+  low: "낮음 · 빠른 응답",
+  medium: "중간 · 균형",
+  high: "높음 · 깊은 분석",
+};
+
 const initialMessages: ChatMessage[] = [
   {
     id: "intro",
@@ -169,56 +185,122 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function simulate(loop: number, chosen: Strategy[]): LoopResult {
+type Outcome = Omit<LoopResult, "loop" | "paretoOptimal" | "dominatedBy">;
+
+const SCENARIO_COUNT = 1200;
+
+function pseudoRandom(index: number, salt: number) {
+  const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function normalShock(index: number) {
+  const u1 = Math.max(pseudoRandom(index, 1), 0.000001);
+  const u2 = pseudoRandom(index, 2);
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function calculateOutcome(chosen: Strategy[]): Outcome {
   const flow = chosen.reduce((sum, card) => sum + card.flow, 0);
   const stability = chosen.reduce((sum, card) => sum + card.stability, 0);
   const damageProtection = chosen.reduce((sum, card) => sum + card.damage, 0);
   const equity = chosen.reduce((sum, card) => sum + card.equity, 0);
-  const breaksBottleneck = chosen.some((card) =>
-    ["tunnel", "signal"].includes(card.id),
-  );
+  const hasTunnel = chosen.some((card) => card.id === "tunnel");
+  const hasSignal = chosen.some((card) => card.id === "signal");
+  const breaksBottleneck = hasTunnel || hasSignal;
   const hasTransportWithoutBottleneck =
     chosen.some((card) => card.id === "bus") && !breaksBottleneck;
-  const hasCriticalPair =
-    chosen.some((card) => card.id === "tunnel") &&
-    chosen.some((card) => card.id === "signal");
-
-  const evacuation = clamp(
-    52 +
-      flow * 0.7 +
-      (breaksBottleneck ? 7 : 0) +
-      (hasCriticalPair ? 3 : 0) -
-      (hasTransportWithoutBottleneck ? 8 : 0) +
-      (loop - 1) * 3.5,
-    51,
-    98,
-  );
-  const variability = clamp(
-    13.8 - stability * 0.62 - (loop - 1) * 1.25,
-    2.4,
-    14.5,
-  );
-  const chance90 = clamp(
-    16 + (evacuation - 75) * 3.1 + stability * 2.2,
-    3,
+  const hasCriticalPair = hasTunnel && hasSignal;
+  const bottleneckCapacity = 42 + (hasTunnel ? 26 : 0) + (hasSignal ? 14 : 0) + (hasCriticalPair ? 8 : 0);
+  const meanEvacuation = clamp(
+    52 + flow * 0.72 + (bottleneckCapacity - 42) * 0.27 -
+      (hasTransportWithoutBottleneck ? 9 : 0),
+    48,
     97,
   );
+  const variability = clamp(
+    14.8 - stability * 0.68 - (hasCriticalPair ? 1.1 : 0) +
+      (hasTransportWithoutBottleneck ? 1.8 : 0),
+    3.2,
+    16,
+  );
+  let evacuationTotal = 0;
+  let successCount = 0;
+  for (let scenario = 1; scenario <= SCENARIO_COUNT; scenario += 1) {
+    const cascadingFailure = pseudoRandom(scenario, 3) < 0.12
+      ? Math.max(0, 7 - stability * 0.35)
+      : 0;
+    const evacuation = clamp(
+      meanEvacuation + normalShock(scenario) * variability - cascadingFailure,
+      35,
+      99,
+    );
+    evacuationTotal += evacuation;
+    if (evacuation >= 90) successCount += 1;
+  }
+  const evacuation = evacuationTotal / SCENARIO_COUNT;
+  const chance90 = (successCount / SCENARIO_COUNT) * 100;
   const damage = clamp(
-    94 - damageProtection * 3.2 - (loop - 1) * 4 + (hasCriticalPair ? 3 : 0),
+    94 - damageProtection * 3.2 + (hasCriticalPair ? 3 : 0),
     18,
     96,
   );
-  const equityGap = clamp(25 - equity * 1.15 - (loop - 1) * 1.4, 4, 27);
+  const equityGap = clamp(25 - equity * 1.15, 4, 27);
 
   return {
-    loop,
     evacuation: Math.round(evacuation * 10) / 10,
     variability: Math.round(variability * 10) / 10,
     chance90: Math.round(chance90),
     damage: Math.round(damage),
     equityGap: Math.round(equityGap * 10) / 10,
+    bottleneckCapacity,
+    scenarioCount: SCENARIO_COUNT,
     cards: chosen.map((card) => card.id),
   };
+}
+
+function validPortfolios() {
+  const portfolios: Strategy[][] = [];
+  for (let first = 0; first < strategies.length - 2; first += 1) {
+    for (let second = first + 1; second < strategies.length - 1; second += 1) {
+      for (let third = second + 1; third < strategies.length; third += 1) {
+        const portfolio = [strategies[first], strategies[second], strategies[third]];
+        if (portfolio.reduce((sum, card) => sum + card.cost, 0) <= 100) portfolios.push(portfolio);
+      }
+    }
+  }
+  return portfolios;
+}
+
+function dominates(candidate: Outcome, target: Outcome) {
+  const noWorse =
+    candidate.evacuation >= target.evacuation &&
+    candidate.chance90 >= target.chance90 &&
+    candidate.variability <= target.variability &&
+    candidate.damage <= target.damage &&
+    candidate.equityGap <= target.equityGap;
+  const strictlyBetter =
+    candidate.evacuation > target.evacuation ||
+    candidate.chance90 > target.chance90 ||
+    candidate.variability < target.variability ||
+    candidate.damage < target.damage ||
+    candidate.equityGap < target.equityGap;
+  return noWorse && strictlyBetter;
+}
+
+const portfolioOutcomes = validPortfolios().map(calculateOutcome);
+
+function paretoPosition(outcome: Outcome) {
+  return {
+    left: `${clamp(((outcome.damage - 18) / (96 - 18)) * 86 + 5, 5, 91)}%`,
+    bottom: `${clamp(((outcome.evacuation - 48) / (99 - 48)) * 78 + 7, 7, 85)}%`,
+  };
+}
+
+function simulate(loop: number, chosen: Strategy[]): LoopResult {
+  const outcome = calculateOutcome(chosen);
+  const dominatedBy = portfolioOutcomes.filter((candidate) => dominates(candidate, outcome)).length;
+  return { ...outcome, loop, dominatedBy, paretoOptimal: dominatedBy === 0 };
 }
 
 function localCoach(
@@ -310,6 +392,9 @@ export default function MissionControl() {
   const latest = results.at(-1);
   const canDeploy = selected.length === 3 && totalCost <= 100;
   const connected = Boolean(llmConfig.apiKey && llmConfig.model);
+  const latestCards = latest
+    ? strategies.filter((card) => latest.cards.includes(card.id))
+    : [];
   const visibleMessages = connected
     ? messages.filter((message) => message.id !== "intro")
     : messages;
@@ -332,7 +417,10 @@ export default function MissionControl() {
     const bottleneckNote = selected.some((id) => ["tunnel", "signal"].includes(id))
       ? "C-07 병목 용량이 개선되었습니다."
       : "C-07 병목이 남아 추가 수송 자원의 효과가 제한됐습니다.";
-    const report = `Loop ${loop} 완료. 대피율 ${result.evacuation}%, 변동성 ${result.variability}%, 90% 이상 달성 확률 ${result.chance90}%입니다. ${bottleneckNote}`;
+    const paretoNote = result.paretoOptimal
+      ? "전체 예산 내 조합과 비교해 파레토 비지배 전략입니다."
+      : `${result.dominatedBy}개 조합이 모든 핵심 지표에서 같거나 더 낫습니다.`;
+    const report = `Loop ${loop} 완료. ${result.scenarioCount.toLocaleString()}개 재난 시나리오의 평균 대피율은 ${result.evacuation}%, 변동성은 ${result.variability}%p, 90% 이상 달성 확률은 ${result.chance90}%입니다. ${bottleneckNote} ${paretoNote}`;
     setMessages((current) => [
       ...current,
       { id: `loop-${loop}`, role: "assistant", content: report },
@@ -403,6 +491,10 @@ export default function MissionControl() {
             masterPrompt: llmConfig.masterPrompt,
             userNotes: llmConfig.userNotes,
             ooc: llmConfig.ooc,
+          },
+          generation: {
+            maxOutputTokens: llmConfig.maxOutputTokens,
+            reasoningLevel: llmConfig.reasoningLevel,
           },
         }),
       });
@@ -618,13 +710,13 @@ export default function MissionControl() {
                   <div className="flow-analysis">
                     <div className="analysis-title">
                       <span>최소 절단 분석</span>
-                      <small>용량 42 → {selected.includes("tunnel") ? 68 : selected.includes("signal") ? 56 : 42}</small>
+                      <small>용량 42 → {latest.bottleneckCapacity}</small>
                     </div>
                     <div className="flow-line">
                       <span>주거지</span><i /><b className="danger">C-07</b><i /><span>대피소</span>
                     </div>
                     <p>
-                      {selected.some((id) => ["tunnel", "signal"].includes(id))
+                      {latest.cards.some((id) => ["tunnel", "signal"].includes(id))
                         ? "병목 대응 카드가 전체 네트워크 유량을 개선했습니다."
                         : "추가 수송 자원이 병목 앞에 누적되고 있습니다. 간선 용량 개선이 우선입니다."}
                     </p>
@@ -632,11 +724,16 @@ export default function MissionControl() {
                   <div className="pareto-analysis">
                     <div className="analysis-title">
                       <span>파레토 위치</span>
-                      <small>{latest.evacuation >= 88 && latest.damage <= 55 ? "비지배 후보" : "지배 가능성"}</small>
+                      <small>{latest.paretoOptimal ? "비지배 전략" : `${latest.dominatedBy}개 조합에 지배됨`}</small>
                     </div>
                     <div className="pareto-plot" aria-label="생존율과 피해액 파레토 그래프">
-                      <i className="dot d1" /><i className="dot d2" /><i className="dot d3" />
-                      <i className="dot d4" /><i className="dot current" />
+                      {portfolioOutcomes.map((outcome) => (
+                        <i
+                          className={`dot ${outcome.cards.join("-") === latest.cards.join("-") ? "current" : ""}`}
+                          key={outcome.cards.join("-")}
+                          style={paretoPosition(outcome)}
+                        />
+                      ))}
                       <span className="axis-y">생존율 ↑</span>
                       <span className="axis-x">피해액 →</span>
                     </div>
@@ -768,7 +865,7 @@ export default function MissionControl() {
         <FinalReport
           result={latest}
           first={results[0]}
-          cards={selectedCards}
+          cards={latestCards}
           onClose={() => setReportOpen(false)}
           onReset={resetMission}
         />
@@ -812,7 +909,12 @@ function LlmSettings({
     setDraft((current) => ({
       ...current,
       provider,
-      model: provider === "openai" ? "gpt-5.6-terra" : "",
+      model:
+        provider === "openai"
+          ? "gpt-5.6-terra"
+          : provider === "gemini"
+            ? "gemini-3.6-flash"
+            : "",
       baseUrl: provider === "compatible" ? current.baseUrl : "",
     }));
   };
@@ -902,6 +1004,38 @@ function LlmSettings({
               </div>
             </label>
 
+            <div className="generation-grid">
+              <label className="field-label">
+                최대 출력 토큰
+                <input
+                  type="number"
+                  min={256}
+                  max={65536}
+                  step={256}
+                  value={draft.maxOutputTokens}
+                  onChange={(event) => setDraft({
+                    ...draft,
+                    maxOutputTokens: Math.min(65536, Math.max(256, Number(event.target.value) || 256)),
+                  })}
+                  inputMode="numeric"
+                />
+                <small>256–65,536 · 응답 길이와 사용량에 영향을 줍니다.</small>
+              </label>
+
+              <label className="field-label">
+                사고 레벨
+                <select
+                  value={draft.reasoningLevel}
+                  onChange={(event) => setDraft({ ...draft, reasoningLevel: event.target.value as ReasoningLevel })}
+                >
+                  {(Object.keys(reasoningLabels) as ReasoningLevel[]).map((level) => (
+                    <option value={level} key={level}>{reasoningLabels[level]}</option>
+                  ))}
+                </select>
+                <small>공급자가 지원하는 가장 가까운 추론 설정으로 변환합니다.</small>
+              </label>
+            </div>
+
             <label className="remember-option">
               <input
                 type="checkbox"
@@ -988,8 +1122,10 @@ function FinalReport({
   onClose: () => void;
   onReset: () => void;
 }) {
-  const improved = first ? result.evacuation > first.evacuation : true;
-  const success = result.evacuation >= 90 || (result.damage <= 55 && result.chance90 >= 60);
+  const improved = first
+    ? result.dominatedBy < first.dominatedBy || result.evacuation > first.evacuation
+    : true;
+  const success = result.paretoOptimal && result.chance90 >= 50;
   return (
     <div className="modal-backdrop report-backdrop" role="presentation">
       <section className="final-report" role="dialog" aria-modal="true" aria-labelledby="final-title">
@@ -1017,7 +1153,7 @@ function FinalReport({
           </div>
           <div>
             <span>성공 조건</span>
-            <p>{result.evacuation >= 90 ? "평균 대피율 90% 이상" : "파레토 비지배 후보"} · 예산 준수 · {improved ? "최초 전략보다 개선" : "추가 개선 필요"}</p>
+            <p>{result.paretoOptimal ? "전체 조합 기준 파레토 비지배" : `${result.dominatedBy}개 우월 조합 존재`} · 90% 달성 확률 {result.chance90}% · {improved ? "최초 전략보다 개선" : "추가 개선 필요"}</p>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render(path = "/") {
@@ -31,4 +32,18 @@ test("renders the Optimizer mission interface", async () => {
   assert.match(html, /OOC/);
   assert.doesNotMatch(html, /codex-preview/);
   assert.doesNotMatch(html, /react-loading-skeleton/);
+});
+
+test("ships simulation and model generation controls", async () => {
+  const [client, route] = await Promise.all([
+    readFile(new URL("../app/mission-control.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/llm/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /SCENARIO_COUNT = 1200/);
+  assert.match(client, /function dominates/);
+  assert.match(client, /최대 출력 토큰/);
+  assert.match(client, /사고 레벨/);
+  assert.match(route, /max_output_tokens: maxOutputTokens/);
+  assert.match(route, /thinkingLevel/);
+  assert.match(route, /output_config/);
 });

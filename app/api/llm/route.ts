@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 type Provider = "openai" | "anthropic" | "gemini" | "compatible";
 type Message = { role: "user" | "assistant"; content: string };
+type ReasoningLevel = "none" | "low" | "medium" | "high";
 
 const SYSTEM_PROMPT = `당신은 도시 재난대응 시뮬레이션의 AI 에이전트 '옵티마이저'다.
 참가자는 제한 예산으로 전략 카드 3장을 선택하고 3번의 타임루프를 수행한다.
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const { provider, model, baseUrl, messages, mission, mode, story } = parsed.value;
+  const { provider, model, baseUrl, messages, mission, mode, story, generation } = parsed.value;
   const missionContext = `현재 게임 상태: ${JSON.stringify(mission ?? {})}`;
   const storyContext = [
     story.masterPrompt ? `=== MASTER PROMPT ===\n${story.masterPrompt}` : "",
@@ -45,6 +46,8 @@ export async function POST(request: Request) {
       baseUrl,
       apiKey,
       messages,
+      maxOutputTokens: generation.maxOutputTokens,
+      reasoningLevel: generation.reasoningLevel,
       system: `${SYSTEM_PROMPT}\n\n${storyContext}\n\n${missionContext}`,
       signal: controller.signal,
     });
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
 }
 
 function validateBody(body: unknown):
-  | { ok: true; value: { provider: Provider; model: string; baseUrl: string; messages: Message[]; mission: unknown; mode: "story" | "ooc"; story: { masterPrompt: string; userNotes: string; ooc: string } } }
+  | { ok: true; value: { provider: Provider; model: string; baseUrl: string; messages: Message[]; mission: unknown; mode: "story" | "ooc"; story: { masterPrompt: string; userNotes: string; ooc: string }; generation: { maxOutputTokens: number; reasoningLevel: ReasoningLevel } } }
   | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "요청 본문이 없습니다." };
   const value = body as Record<string, unknown>;
@@ -102,6 +105,16 @@ function validateBody(body: unknown):
     userNotes: typeof rawStory.userNotes === "string" ? rawStory.userNotes.trim().slice(0, 8000) : "",
     ooc: typeof rawStory.ooc === "string" ? rawStory.ooc.trim().slice(0, 4000) : "",
   };
+  const rawGeneration = value.generation && typeof value.generation === "object"
+    ? value.generation as Record<string, unknown>
+    : {};
+  const requestedTokens = Number(rawGeneration.maxOutputTokens);
+  const maxOutputTokens = Number.isFinite(requestedTokens)
+    ? Math.round(Math.min(65536, Math.max(256, requestedTokens)))
+    : 8192;
+  const reasoningLevel = ["none", "low", "medium", "high"].includes(String(rawGeneration.reasoningLevel))
+    ? rawGeneration.reasoningLevel as ReasoningLevel
+    : "medium";
   return {
     ok: true,
     value: {
@@ -112,6 +125,7 @@ function validateBody(body: unknown):
       mission: value.mission,
       mode,
       story,
+      generation: { maxOutputTokens, reasoningLevel },
     },
   };
 }
@@ -144,6 +158,8 @@ async function callProvider({
   baseUrl,
   apiKey,
   messages,
+  maxOutputTokens,
+  reasoningLevel,
   system,
   signal,
 }: {
@@ -152,6 +168,8 @@ async function callProvider({
   baseUrl: string;
   apiKey: string;
   messages: Message[];
+  maxOutputTokens: number;
+  reasoningLevel: ReasoningLevel;
   system: string;
   signal: AbortSignal;
 }) {
@@ -160,7 +178,14 @@ async function callProvider({
       method: "POST",
       signal,
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ model, instructions: system, input: messages, store: false }),
+      body: JSON.stringify({
+        model,
+        instructions: system,
+        input: messages,
+        max_output_tokens: maxOutputTokens,
+        reasoning: { effort: reasoningLevel },
+        store: false,
+      }),
     });
     const data = await readJson(response);
     if (!response.ok) throw upstreamError(data, response.status);
@@ -185,7 +210,15 @@ async function callProvider({
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ model, max_tokens: 700, system, messages }),
+      body: JSON.stringify({
+        model,
+        max_tokens: maxOutputTokens,
+        system,
+        messages,
+        ...(reasoningLevel === "none"
+          ? {}
+          : { output_config: { effort: reasoningLevel } }),
+      }),
     });
     const data = await readJson(response);
     if (!response.ok) throw upstreamError(data, response.status);
@@ -208,7 +241,12 @@ async function callProvider({
             role: message.role === "assistant" ? "model" : "user",
             parts: [{ text: message.content }],
           })),
-          generationConfig: { maxOutputTokens: 700 },
+          generationConfig: {
+            maxOutputTokens,
+            thinkingConfig: {
+              thinkingLevel: reasoningLevel === "none" ? "minimal" : reasoningLevel,
+            },
+          },
         }),
       },
     );
@@ -230,7 +268,8 @@ async function callProvider({
     body: JSON.stringify({
       model,
       messages: [{ role: "system", content: system }, ...messages],
-      max_tokens: 700,
+      max_tokens: maxOutputTokens,
+      ...(reasoningLevel === "none" ? {} : { reasoning_effort: reasoningLevel }),
     }),
   });
   const data = await readJson(response);

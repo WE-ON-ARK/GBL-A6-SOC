@@ -408,11 +408,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .flow-analysis p { margin: 0; color: var(--secondary); font-size: 12px; line-height: 1.55; }
 .pareto-plot { position: relative; height: 112px; margin-top: 14px; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
 .pareto-plot .dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #b0b0b5; }
-.pareto-plot .d1 { left: 18%; bottom: 22%; }
-.pareto-plot .d2 { left: 34%; bottom: 48%; }
-.pareto-plot .d3 { left: 63%; bottom: 61%; }
-.pareto-plot .d4 { left: 78%; bottom: 35%; }
-.pareto-plot .dot.current { left: 49%; bottom: 72%; width: 11px; height: 11px; background: var(--blue); }
+.pareto-plot .dot.current { width: 11px; height: 11px; background: var(--blue); }
 .axis-x, .axis-y { position: absolute; color: var(--tertiary); font-size: 11px; }
 .axis-x { right: 2px; bottom: -16px; }
 .axis-y { left: 3px; top: 3px; }
@@ -523,8 +519,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .provider-grid button span { font-size: 14px; }
 .provider-grid button.active { color: #fff; border-color: var(--blue); background: var(--blue); }
 .field-label { display: block; margin-top: 14px; color: var(--secondary); font-size: 12px; font-weight: 560; }
-.field-label input, .prompt-field textarea { width: 100%; margin-top: 7px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; outline: 0; color: var(--label); background: rgba(255, 255, 255, 0.76); font-size: 13px; }
-.field-label input:focus, .prompt-field textarea:focus { border-color: rgba(0, 122, 255, 0.5); }
+.field-label input, .field-label select, .prompt-field textarea { width: 100%; margin-top: 7px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; outline: 0; color: var(--label); background: rgba(255, 255, 255, 0.76); font: inherit; font-size: 13px; }
+.field-label input:focus, .field-label select:focus, .prompt-field textarea:focus { border-color: rgba(0, 122, 255, 0.5); }
+.generation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .field-label small { display: block; margin-top: 5px; color: var(--tertiary); font-size: 11px; font-weight: 400; line-height: 1.5; }
 .secret-field { position: relative; }
 .secret-field input { padding-right: 65px; }
@@ -595,6 +592,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 :root[data-theme="dark"] .chat-composer,
 :root[data-theme="dark"] .provider-grid button,
 :root[data-theme="dark"] .field-label input,
+:root[data-theme="dark"] .field-label select,
 :root[data-theme="dark"] .prompt-field textarea { background: rgba(44, 44, 46, 0.72); }
 :root[data-theme="dark"] .message p { color: var(--label); }
 :root[data-theme="dark"] .message.user p { color: #fff; background: var(--blue); }
@@ -684,6 +682,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .slots > span { display: grid; grid-template-columns: auto 1fr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .agent-state { display: none; }
   .provider-grid { grid-template-columns: repeat(2, 1fr); }
+  .generation-grid { grid-template-columns: 1fr; }
   .settings-modal, .final-report { padding: 20px; border-radius: 22px; }
   .modal-actions { flex-direction: column; }
   .modal-actions button { width: 100%; }
