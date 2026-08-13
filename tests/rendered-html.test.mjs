@@ -52,6 +52,14 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /function dominates/);
   assert.match(client, /최대 출력 토큰/);
   assert.match(client, /사고 레벨/);
+  assert.match(client, /PROMPT_VERSION = 2/);
+  assert.match(client, /여성향 근미래 재난 스릴러/);
+  assert.match(client, /이번 Loop가 의미하는 것/);
+  assert.match(client, /availableCards/);
+  assert.match(client, /카드 조합 비교해줘/);
+  assert.match(route, /게임 마스터, 카드 전략 코치, Loop 디브리퍼/);
+  assert.match(route, /기본 호칭은 '지휘관님'/);
+  assert.match(route, /CURRENT MISSION STATE \(유일한 사실 기준\)/);
   assert.match(route, /max_output_tokens: maxOutputTokens/);
   assert.match(route, /thinkingLevel/);
   assert.match(route, /output_config/);
