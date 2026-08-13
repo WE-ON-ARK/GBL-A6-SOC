@@ -190,6 +190,7 @@ type Outcome = Omit<LoopResult, "loop" | "paretoOptimal" | "dominatedBy">;
 
 const SCENARIO_COUNT = 1200;
 const ROUND_SECONDS = 5 * 60;
+const ROUND_TIMER_KEY = "optimizer-round-timer";
 
 type NetworkLinkStyle = {
   left: number;
@@ -447,6 +448,7 @@ export default function MissionControl() {
   const [llmConfig, setLlmConfig] = useState<LlmConfig>(defaultConfig);
   const chatLogRef = useRef<HTMLDivElement>(null);
   const roundDurationRef = useRef(ROUND_SECONDS);
+  const timerDeadlineRef = useRef<number | null>(null);
   const activeRequestRef = useRef<AbortController | null>(null);
   const localReplyTimersRef = useRef<Set<number>>(new Set());
 
@@ -468,6 +470,23 @@ export default function MissionControl() {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem(ROUND_TIMER_KEY);
+      if (!stored) return;
+      const saved = JSON.parse(stored) as { loop?: number; deadline?: number };
+      if (saved.loop !== 1 || typeof saved.deadline !== "number" || saved.deadline <= Date.now()) {
+        window.sessionStorage.removeItem(ROUND_TIMER_KEY);
+        return;
+      }
+      timerDeadlineRef.current = saved.deadline;
+      setTimerDeadline(saved.deadline);
+      setSecondsLeft(Math.max(0, Math.ceil((saved.deadline - Date.now()) / 1000)));
+    } catch {
+      // The in-memory timer remains available when session storage is blocked.
+    }
+  }, []);
+
+  useEffect(() => {
     const activeTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     setTheme(activeTheme);
   }, []);
@@ -478,16 +497,22 @@ export default function MissionControl() {
   }, [messages, sending]);
 
   useEffect(() => {
-    if (timerDeadline === null || timedOut) return;
-
     const updateTimer = () => {
-      const remaining = Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000));
+      const deadline = timerDeadlineRef.current;
+      if (deadline === null) return;
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       setSecondsLeft(remaining);
       if (remaining > 0) return;
 
+      timerDeadlineRef.current = null;
       setTimerDeadline(null);
       setTimedOut(true);
       setSending(false);
+      try {
+        window.sessionStorage.removeItem(ROUND_TIMER_KEY);
+      } catch {
+        // The expired in-memory timer is already cleared.
+      }
       activeRequestRef.current?.abort();
       activeRequestRef.current = null;
       localReplyTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -497,7 +522,7 @@ export default function MissionControl() {
     updateTimer();
     const interval = window.setInterval(updateTimer, 250);
     return () => window.clearInterval(interval);
-  }, [timerDeadline, timedOut]);
+  }, []);
 
   useEffect(() => () => {
     activeRequestRef.current?.abort();
@@ -537,15 +562,27 @@ export default function MissionControl() {
   const formattedTime = `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
 
   const startRoundTimer = () => {
-    if (timerDeadline === null && !timedOut) {
-      setTimerDeadline(Date.now() + secondsLeft * 1000);
+    if (timerDeadlineRef.current !== null || timedOut) return;
+    const deadline = Date.now() + secondsLeft * 1000;
+    timerDeadlineRef.current = deadline;
+    setTimerDeadline(deadline);
+    try {
+      window.sessionStorage.setItem(ROUND_TIMER_KEY, JSON.stringify({ loop, deadline }));
+    } catch {
+      // The in-memory deadline remains authoritative.
     }
   };
 
   const resetRoundTimer = () => {
+    timerDeadlineRef.current = null;
     setTimerDeadline(null);
     setSecondsLeft(roundDurationRef.current);
     setTimedOut(false);
+    try {
+      window.sessionStorage.removeItem(ROUND_TIMER_KEY);
+    } catch {
+      // The in-memory timer is already reset.
+    }
   };
 
   const toggleCard = (card: Strategy) => {
@@ -578,7 +615,13 @@ export default function MissionControl() {
     ]);
 
     if (loop === 3) {
+      timerDeadlineRef.current = null;
       setTimerDeadline(null);
+      try {
+        window.sessionStorage.removeItem(ROUND_TIMER_KEY);
+      } catch {
+        // The completed in-memory timer is already cleared.
+      }
       setReportOpen(true);
     } else {
       setLoop((current) => current + 1);

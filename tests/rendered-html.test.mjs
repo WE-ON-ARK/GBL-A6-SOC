@@ -41,6 +41,8 @@ test("ships simulation and model generation controls", async () => {
   ]);
   assert.match(client, /SCENARIO_COUNT = 1200/);
   assert.match(client, /ROUND_SECONDS = 5 \* 60/);
+  assert.match(client, /ROUND_TIMER_KEY = "optimizer-round-timer"/);
+  assert.match(client, /timerDeadlineRef/);
   assert.match(client, /startRoundTimer/);
   assert.match(client, /activeRequestRef\.current\?\.abort/);
   assert.match(client, /LOOP \{loop\} 다시 시도/);
