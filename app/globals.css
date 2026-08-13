@@ -299,12 +299,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   overflow: hidden;
 }
 .map-grid { position: absolute; inset: 0; border: 0; }
-.road { position: absolute; z-index: 1; height: 2px; transform-origin: left center; background: rgba(0, 122, 255, 0.46); }
-.road-a { width: 37%; left: 18%; top: 32%; transform: rotate(24deg); }
-.road-b { width: 35%; left: 50%; top: 48%; transform: rotate(-22deg); }
-.road-c { width: 40%; left: 16%; top: 69%; transform: rotate(-21deg); }
-.road-d { width: 36%; left: 48%; top: 60%; transform: rotate(18deg); }
-.road-e { width: 34%; left: 35%; top: 21%; transform: rotate(87deg); background: rgba(215, 0, 21, 0.5); }
+.network-links { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
+.network-link { position: absolute; height: 2px; border-radius: 999px; transform-origin: 0 50%; background: rgba(0, 122, 255, 0.56); }
+.network-link::after { position: absolute; top: 50%; right: -1px; width: 7px; height: 7px; border: 2px solid var(--blue); border-left: 0; border-bottom: 0; content: ""; transform: translateY(-50%) rotate(45deg); }
+.power-to-tunnel, .tunnel-to-hospital, .tunnel-to-shelter { opacity: 0; }
+.power-to-tunnel[style], .tunnel-to-hospital[style], .tunnel-to-shelter[style] { opacity: 1; }
 .map-node {
   position: absolute;
   z-index: 3;
@@ -326,12 +325,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .map-node i { width: 10px; height: 10px; grid-row: span 2; border: 3px solid currentColor; border-radius: 50%; color: var(--blue); }
 .map-node span { font-size: 12px; font-weight: 650; }
 .map-node small { color: var(--secondary); font-size: 11px; }
-.map-node.power { left: 13%; top: 24%; }
-.map-node.tunnel { left: 45%; top: 45%; }
-.map-node.hospital { right: 9%; top: 20%; }
-.map-node.shelter { right: 15%; bottom: 18%; }
+.map-node.power { left: 8%; top: 22%; }
+.map-node.tunnel { left: 55%; top: 50%; transform: translate(-50%, -50%); }
+.map-node.hospital { right: 6%; top: 17%; }
+.map-node.shelter { right: 8%; bottom: 15%; }
 .map-node.critical { border-color: rgba(215, 0, 21, 0.22); background: rgba(255, 240, 240, 0.82); }
 .map-node.critical i { color: var(--red); }
+.map-node.critical::after { position: absolute; left: 50%; bottom: -12px; width: 36px; height: 3px; border-radius: 999px; content: ""; background: var(--red); transform: translateX(-50%); }
 .map-status { position: absolute; top: 20px; left: 20px; display: flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 12px; font-weight: 560; }
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 .map-legend { position: absolute; right: 18px; bottom: 17px; display: flex; gap: 12px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.88); border-radius: 999px; color: var(--secondary); background: rgba(255, 255, 255, 0.66); backdrop-filter: blur(12px); font-size: 11px; }
@@ -684,7 +684,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .briefing-copy > p:not(.signal-label) { font-size: 14px; }
   .briefing-tags span { font-size: 11px; }
   .city-map { min-height: 320px; }
-  .map-node { transform: scale(0.85); transform-origin: center; }
+  .map-node { scale: 0.85; transform-origin: center; }
+  .map-node.tunnel { transform: translate(-50%, -50%); }
   .map-node.power { left: 2%; }
   .map-node.hospital { right: -1%; }
   .map-node.shelter { right: 2%; }

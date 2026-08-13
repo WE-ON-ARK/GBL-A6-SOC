@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -189,6 +190,98 @@ type Outcome = Omit<LoopResult, "loop" | "paretoOptimal" | "dominatedBy">;
 
 const SCENARIO_COUNT = 1200;
 const ROUND_SECONDS = 5 * 60;
+
+type NetworkLinkStyle = {
+  left: number;
+  top: number;
+  width: number;
+  transform: string;
+};
+
+function CityNetworkMap() {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const powerRef = useRef<HTMLButtonElement>(null);
+  const tunnelRef = useRef<HTMLButtonElement>(null);
+  const hospitalRef = useRef<HTMLButtonElement>(null);
+  const shelterRef = useRef<HTMLButtonElement>(null);
+  const [links, setLinks] = useState<Record<string, NetworkLinkStyle>>({});
+
+  useLayoutEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const updateLinks = () => {
+      const mapBox = map.getBoundingClientRect();
+      const connect = (
+        from: HTMLButtonElement | null,
+        to: HTMLButtonElement | null,
+      ): NetworkLinkStyle | null => {
+        if (!from || !to) return null;
+        const fromBox = from.getBoundingClientRect();
+        const toBox = to.getBoundingClientRect();
+        const left = fromBox.left + fromBox.width / 2 - mapBox.left;
+        const top = fromBox.top + fromBox.height / 2 - mapBox.top;
+        const targetX = toBox.left + toBox.width / 2 - mapBox.left;
+        const targetY = toBox.top + toBox.height / 2 - mapBox.top;
+        const deltaX = targetX - left;
+        const deltaY = targetY - top;
+        return {
+          left,
+          top,
+          width: Math.hypot(deltaX, deltaY),
+          transform: `rotate(${Math.atan2(deltaY, deltaX)}rad)`,
+        };
+      };
+
+      const nextLinks = {
+        power: connect(powerRef.current, tunnelRef.current),
+        hospital: connect(tunnelRef.current, hospitalRef.current),
+        shelter: connect(tunnelRef.current, shelterRef.current),
+      };
+      if (nextLinks.power && nextLinks.hospital && nextLinks.shelter) {
+        setLinks(nextLinks as Record<string, NetworkLinkStyle>);
+      }
+    };
+
+    updateLinks();
+    const observer = new ResizeObserver(updateLinks);
+    observer.observe(map);
+    window.addEventListener("resize", updateLinks);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateLinks);
+    };
+  }, []);
+
+  return (
+    <div className="city-map" ref={mapRef} aria-label="도시 대피 네트워크">
+      <div className="map-grid" />
+      <div className="network-links" aria-hidden="true">
+        <span className="network-link power-to-tunnel" style={links.power} />
+        <span className="network-link tunnel-to-hospital" style={links.hospital} />
+        <span className="network-link tunnel-to-shelter" style={links.shelter} />
+      </div>
+      <button ref={powerRef} className="map-node power" aria-label="중앙 발전소: 위험">
+        <i /><span>P-01</span><small>발전소</small>
+      </button>
+      <button ref={tunnelRef} className="map-node tunnel critical" aria-label="C-07 터널: 병목">
+        <i /><span>C-07</span><small>최소 절단 · 42</small>
+      </button>
+      <button ref={hospitalRef} className="map-node hospital" aria-label="병원">
+        <i /><span>H-02</span><small>병원</small>
+      </button>
+      <button ref={shelterRef} className="map-node shelter" aria-label="대피소">
+        <i /><span>S-09</span><small>대피소</small>
+      </button>
+      <div className="map-status"><span className="pulse" />도시 네트워크 · 실시간</div>
+      <div className="map-legend">
+        <span><i className="legend-safe" /> 정상</span>
+        <span><i className="legend-risk" /> 위험</span>
+        <span><i className="legend-bottleneck" /> 병목</span>
+      </div>
+    </div>
+  );
+}
 
 function pseudoRandom(index: number, salt: number) {
   const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
@@ -719,43 +812,7 @@ export default function MissionControl() {
               </div>
             </div>
 
-            <div className="city-map" aria-label="도시 대피 네트워크">
-              <div className="map-grid" />
-              <div className="road road-a" />
-              <div className="road road-b" />
-              <div className="road road-c" />
-              <div className="road road-d" />
-              <div className="road road-e" />
-              <button className="map-node power" aria-label="중앙 발전소: 위험">
-                <i />
-                <span>P-01</span>
-                <small>발전소</small>
-              </button>
-              <button className="map-node tunnel critical" aria-label="C-07 터널: 병목">
-                <i />
-                <span>C-07</span>
-                <small>최소 절단 · 42</small>
-              </button>
-              <button className="map-node hospital" aria-label="병원">
-                <i />
-                <span>H-02</span>
-                <small>병원</small>
-              </button>
-              <button className="map-node shelter" aria-label="대피소">
-                <i />
-                <span>S-09</span>
-                <small>대피소</small>
-              </button>
-              <div className="map-status">
-                <span className="pulse" />
-                도시 네트워크 · 실시간
-              </div>
-              <div className="map-legend">
-                <span><i className="legend-safe" /> 정상</span>
-                <span><i className="legend-risk" /> 위험</span>
-                <span><i className="legend-bottleneck" /> 병목</span>
-              </div>
-            </div>
+            <CityNetworkMap />
           </section>
 
           <section className="strategy-section">

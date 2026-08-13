@@ -44,6 +44,9 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /startRoundTimer/);
   assert.match(client, /activeRequestRef\.current\?\.abort/);
   assert.match(client, /LOOP \{loop\} 다시 시도/);
+  assert.match(client, /function CityNetworkMap/);
+  assert.match(client, /ResizeObserver/);
+  assert.doesNotMatch(client, /className="road road-/);
   assert.match(client, /function dominates/);
   assert.match(client, /최대 출력 토큰/);
   assert.match(client, /사고 레벨/);
