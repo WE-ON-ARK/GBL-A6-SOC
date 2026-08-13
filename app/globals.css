@@ -441,7 +441,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   position: sticky;
   z-index: 40;
   top: 96px;
-  height: min(760px, calc(100dvh - 112px));
+  height: min(760px, calc(100dvh - 120px));
   min-height: 600px;
   align-self: start;
   display: flex;
@@ -640,7 +640,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .brand-lockup h1 { max-width: 180px; font-size: 14px; }
   .connection-button { min-width: 138px; min-height: 44px; }
   .connection-button > span:nth-child(2) { max-width: 80px; }
-  .workspace-grid { gap: 12px; padding: 16px 12px 48px; }
+  .workspace-grid { gap: 12px; padding: 16px 12px; }
   .briefing-panel { gap: 26px; padding: 28px; border-radius: 20px; }
   .briefing-copy { padding-top: 150px; }
   .briefing-copy h2 { font-size: clamp(42px, 11vw, 58px); }
