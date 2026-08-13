@@ -728,7 +728,10 @@ export default function MissionControl() {
   }, []);
 
   useEffect(() => {
-    if (!llmConfig.apiKey || llmConfig.connectionVerified || connectionChecking) return;
+    if (!llmConfig.apiKey || llmConfig.connectionVerified) {
+      setConnectionChecking(false);
+      return;
+    }
     let cancelled = false;
     setConnectionChecking(true);
     void fetch("/api/llm/capabilities", {
@@ -760,7 +763,7 @@ export default function MissionControl() {
       if (!cancelled) setConnectionChecking(false);
     });
     return () => { cancelled = true; };
-  }, [llmConfig.apiKey, llmConfig.baseUrl, llmConfig.connectionVerified, llmConfig.provider, connectionChecking]);
+  }, [llmConfig.apiKey, llmConfig.baseUrl, llmConfig.connectionVerified, llmConfig.provider]);
 
   useEffect(() => {
     try {

@@ -66,6 +66,8 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /connectionVerified/);
   assert.match(client, /availableModels/);
   assert.match(client, /API 키 검증 및 모델 불러오기/);
+  assert.doesNotMatch(client, /llmConfig\.provider, connectionChecking/);
+  assert.match(client, /setConnectionChecking\(false\);\s*return;/);
   assert.match(client, /Loop \{loop\} · \{incident\.title\} 반영/);
   assert.match(client, /extractUserName/);
   assert.match(client, /temperature/);
