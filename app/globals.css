@@ -542,8 +542,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .modal-actions .secondary { color: var(--secondary); border: 0; background: rgba(118, 118, 128, 0.1); }
 .modal-actions .primary { min-width: 160px; border: 0; color: #fff; background: var(--blue); font-weight: 620; }
 .modal-actions button:disabled { opacity: 0.35; cursor: not-allowed; }
-.final-report { text-align: center; }
-.report-close { float: right; }
+.final-report { position: relative; text-align: center; }
+.report-close { position: absolute; top: 25px; right: 25px; float: none; }
 .report-emblem { width: 64px; height: 64px; display: grid; place-items: center; margin: 8px auto 18px; border-radius: 18px; color: var(--red); background: rgba(215, 0, 21, 0.07); font-size: 24px; }
 .report-emblem.success { color: var(--green); background: rgba(36, 138, 61, 0.08); }
 .report-emblem.success span {
@@ -684,6 +684,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .provider-grid { grid-template-columns: repeat(2, 1fr); }
   .generation-grid { grid-template-columns: 1fr; }
   .settings-modal, .final-report { padding: 20px; border-radius: 22px; }
+  .report-close { top: 20px; right: 20px; }
   .modal-actions { flex-direction: column; }
   .modal-actions button { width: 100%; }
   .report-score { grid-template-columns: 1fr; }
