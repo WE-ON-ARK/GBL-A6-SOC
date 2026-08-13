@@ -285,6 +285,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .timer-note { margin: -8px 0 18px !important; color: var(--tertiary) !important; font-size: 12px !important; line-height: 1.5 !important; }
 .briefing-copy > p:not(.signal-label) { max-width: 470px; margin: 0; color: var(--secondary); font-size: 15px; line-height: 1.72; }
 .briefing-copy > p strong { color: var(--label); font-weight: 650; }
+.incident-brief { max-width: 480px; margin: 18px 0; padding: 13px 14px; border-left: 3px solid var(--blue); border-radius: 0 14px 14px 0; background: rgba(255, 255, 255, 0.58); backdrop-filter: blur(16px); }
+.incident-brief span { display: block; color: var(--blue); font-size: 10px; font-weight: 650; letter-spacing: 0.04em; }
+.incident-brief strong { display: block; margin-top: 3px; font-size: 14px; }
+.incident-brief p { margin: 4px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+.incident-brief small { display: block; margin-top: 6px; color: var(--label); font-size: 11px; }
 .briefing-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 22px; }
 .briefing-tags span { padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 999px; color: #49494e; background: rgba(255, 255, 255, 0.64); backdrop-filter: blur(14px); font-size: 12px; }
 
@@ -479,15 +484,29 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .message > span { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 8px; color: var(--blue); background: rgba(0, 122, 255, 0.08); font-size: 10px; font-weight: 650; }
 .message > div { max-width: 89%; }
 .message small { display: block; margin-bottom: 5px; color: var(--tertiary); font-size: 11px; }
-.message p { margin: 0; padding: 12px 13px; border: 1px solid var(--line); border-radius: 6px 16px 16px 16px; color: #343438; background: rgba(255, 255, 255, 0.72); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.message-body { padding: 12px 13px; border: 1px solid var(--line); border-radius: 6px 16px 16px 16px; color: #343438; background: rgba(255, 255, 255, 0.72); font-size: 13px; line-height: 1.62; overflow-wrap: anywhere; }
+.message-body > :first-child { margin-top: 0; }
+.message-body > :last-child { margin-bottom: 0; }
+.message-body p { margin: 0 0 9px; padding: 0; border: 0; border-radius: 0; color: inherit; background: transparent; white-space: pre-wrap; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: 14px 0 6px; color: var(--label); line-height: 1.35; letter-spacing: -0.025em; }
+.markdown-body h1 { font-size: 16px; }
+.markdown-body h2 { font-size: 15px; }
+.markdown-body h3 { font-size: 14px; }
+.markdown-body ul, .markdown-body ol { margin: 7px 0 10px; padding-left: 20px; }
+.markdown-body li { margin: 4px 0; }
+.markdown-body strong { color: var(--label); font-weight: 650; }
+.markdown-body blockquote { margin: 9px 0; padding-left: 10px; border-left: 2px solid var(--blue); color: var(--secondary); }
+.markdown-body code { padding: 2px 5px; border-radius: 5px; background: rgba(118, 118, 128, 0.1); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+.markdown-body table { width: 100%; display: block; overflow-x: auto; border-collapse: collapse; font-size: 11px; }
+.markdown-body th, .markdown-body td { padding: 6px; border: 1px solid var(--line); text-align: left; }
 .message.user { justify-content: flex-end; }
 .message.user > div { display: flex; flex-direction: column; align-items: flex-end; }
-.message.user p { border-color: var(--blue); border-radius: 16px 6px 16px 16px; color: #fff; background: var(--blue); }
+.message.user .message-body { border-color: var(--blue); border-radius: 16px 6px 16px 16px; color: #fff; background: var(--blue); }
 .message.user small { text-align: right; }
-.loading-message p { display: flex; gap: 4px; }
-.loading-message p i { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); animation: typing 0.8s infinite alternate; }
-.loading-message p i:nth-child(2) { animation-delay: 0.15s; }
-.loading-message p i:nth-child(3) { animation-delay: 0.3s; }
+.loading-body { display: flex; gap: 4px; }
+.loading-body i { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); animation: typing 0.8s infinite alternate; }
+.loading-body i:nth-child(2) { animation-delay: 0.15s; }
+.loading-body i:nth-child(3) { animation-delay: 0.3s; }
 .quick-prompts { flex: 0 0 auto; display: flex; gap: 5px; padding: 0 12px 9px; overflow-x: auto; }
 .quick-prompts button { min-height: 34px; flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--secondary); background: rgba(255, 255, 255, 0.6); cursor: pointer; font-size: 11px; }
 .quick-prompts button:hover { color: var(--blue); background: #fff; }
@@ -526,8 +545,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .field-label { display: block; margin-top: 14px; color: var(--secondary); font-size: 12px; font-weight: 560; }
 .field-label input, .field-label select, .prompt-field textarea { width: 100%; margin-top: 7px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; outline: 0; color: var(--label); background: rgba(255, 255, 255, 0.76); font: inherit; font-size: 13px; }
 .field-label input:focus, .field-label select:focus, .prompt-field textarea:focus { border-color: rgba(0, 122, 255, 0.5); }
-.generation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.generation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .field-label small { display: block; margin-top: 5px; color: var(--tertiary); font-size: 11px; font-weight: 400; line-height: 1.5; }
+.field-label input:disabled, .field-label select:disabled { color: var(--tertiary); background: rgba(118, 118, 128, 0.08); cursor: not-allowed; }
+.capability-check { min-height: 34px; margin-top: 8px; padding: 6px 10px; border: 0; border-radius: 9px; color: var(--blue); background: rgba(0, 122, 255, 0.08); cursor: pointer; font-size: 11px; }
+.capability-check:disabled { opacity: 0.4; cursor: not-allowed; }
+.capability-result { color: var(--blue) !important; }
 .secret-field { position: relative; }
 .secret-field input { padding-right: 65px; }
 .secret-field span { position: absolute; right: 10px; top: 50%; color: var(--blue); font-size: 11px; }
@@ -600,15 +623,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 :root[data-theme="dark"] .final-report,
 :root[data-theme="dark"] .timeout-report { border-color: rgba(255, 255, 255, 0.16); }
 :root[data-theme="dark"] .objective-card,
-:root[data-theme="dark"] .message p,
+:root[data-theme="dark"] .message-body,
 :root[data-theme="dark"] .quick-prompts button,
 :root[data-theme="dark"] .chat-composer,
 :root[data-theme="dark"] .provider-grid button,
 :root[data-theme="dark"] .field-label input,
 :root[data-theme="dark"] .field-label select,
 :root[data-theme="dark"] .prompt-field textarea { background: rgba(44, 44, 46, 0.72); }
-:root[data-theme="dark"] .message p { color: var(--label); }
-:root[data-theme="dark"] .message.user p { color: #fff; background: var(--blue); }
+:root[data-theme="dark"] .message-body { color: var(--label); }
+:root[data-theme="dark"] .message.user .message-body { color: #fff; background: var(--blue); }
+:root[data-theme="dark"] .incident-brief { background: rgba(28, 28, 30, 0.62); }
 :root[data-theme="dark"] .quick-prompts button:hover,
 :root[data-theme="dark"] .composer-mode-row button.active,
 :root[data-theme="dark"] .settings-tabs button.active { color: var(--label); background: #3a3a3c; }

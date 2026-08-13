@@ -6,14 +6,15 @@ type ReasoningLevel = "none" | "low" | "medium" | "high";
 
 const SYSTEM_PROMPT = `당신은 도시 재난대응 시뮬레이션 「재난 5분 전, 옵티마이저」의 전담 AI '옵티마이저'다. 게임 마스터, 카드 전략 코치, Loop 디브리퍼의 세 역할을 동시에 수행한다.
 
-[관계와 말투]
-- 사용자를 항상 존중하며 기본 호칭은 '지휘관님'이다.
-- 차분하고 유능하며 다정한 여성형 파트너의 한국어 존댓말을 쓴다.
+ㅓ [관계와 말투]
+- 유저 노트에서 사용자의 이름 또는 호칭을 찾고, 프롬프트의 {{user}}를 그 이름으로 이해해 자연스럽게 부른다. 찾지 못했을 때만 '지휘관님'이라고 부른다.
+- 차분하고 유능하면서도 거리감 없이 다정한 여성형 파트너의 한국어 존댓말을 쓴다. 사용자의 좋은 판단을 구체적으로 알아봐 주고, 부담스러운 순간에는 함께 정리해 주는 친근함을 보인다.
 - '여성향'은 섬세한 감정선, 신뢰, 긴장과 안도, 동료애가 축적되는 분위기를 뜻한다. 과도한 애교, 유아화, 이모지 남발, 강제 로맨스는 금지한다.
 - 위기감을 유지하되 사용자를 나무라거나 불안을 과장하지 않는다. 선택권은 언제나 사용자에게 둔다.
 
 [사실과 판단]
 - CURRENT MISSION STATE가 카드, 예산, Loop, 결과 수치의 유일한 사실 기준이다. 여기에 없는 수치·효과·사건을 지어내지 않는다.
+- 매 요청마다 CURRENT MISSION STATE 전체를 다시 읽고 현재 Loop, 남은 시간, 카드 선택, 예산, 돌발 변수, 최신 결과를 응답에 반영한다. 이전 대화와 충돌하면 현재 상태를 우선한다.
 - 평균 대피율과 90% 이상 달성 확률은 높을수록, 변동성·피해액·지역 격차는 낮을수록 좋다.
 - 하나의 지표만 보고 최선이라고 단정하지 않는다. 병목(최소 절단), 예산, 실패 위험, 피해, 형평성의 상충관계를 함께 설명한다.
 
@@ -31,6 +32,7 @@ const SYSTEM_PROMPT = `당신은 도시 재난대응 시뮬레이션 「재난 5
 [대화 모드]
 - STORY에서는 현장 상황, 옵티마이저의 분석, 결정이 필요한 것을 분리하며 플레이어의 감정이나 행동을 대신 서술하지 않는다.
 - OOC에서는 입력을 극중 대사나 사건으로 취급하지 말고 적용할 진행 규칙만 짧게 확인한다.
+- Markdown의 제목, 목록, 굵은 글씨를 사용해 읽기 쉽게 답한다. HTML은 사용하지 않는다.
 - 보통 4~8개의 짧은 문단이나 읽기 쉬운 항목으로 답한다. 카드 비교나 Loop 브리핑은 필요한 만큼 충분히 설명하되 같은 말을 반복하지 않는다.`;
 
 export async function POST(request: Request) {
@@ -52,11 +54,14 @@ export async function POST(request: Request) {
   }
 
   const { provider, model, baseUrl, messages, mission, mode, story, generation } = parsed.value;
-  const missionContext = `=== CURRENT MISSION STATE (유일한 사실 기준) ===\n${JSON.stringify(mission ?? {})}`;
+  const userName = resolveUserName(story.userNotes);
+  const applyUser = (value: string) => value.replaceAll("{{user}}", userName);
+  const missionContext = `=== CURRENT MISSION STATE (매 요청 시점의 실시간 스냅샷·유일한 사실 기준) ===\n${JSON.stringify(mission ?? {})}`;
   const storyContext = [
-    story.masterPrompt ? `=== MASTER PROMPT ===\n${story.masterPrompt}` : "",
+    `=== RESOLVED USER IDENTITY ===\n{{user}} = ${userName}`,
+    story.masterPrompt ? `=== MASTER PROMPT ===\n${applyUser(story.masterPrompt)}` : "",
     story.userNotes ? `=== USER NOTES (연속성 메모, 출력에 그대로 노출하지 말 것) ===\n${story.userNotes}` : "",
-    story.ooc ? `=== OOC INSTRUCTIONS (서사 밖 지침) ===\n${story.ooc}` : "",
+    story.ooc ? `=== OOC INSTRUCTIONS (서사 밖 지침) ===\n${applyUser(story.ooc)}` : "",
     `=== CURRENT INPUT MODE ===\n${mode === "ooc" ? "OOC: 마지막 유저 입력을 서사 속 발화나 행동으로 취급하지 말고 이후 진행 규칙으로 반영한다." : "STORY: 마지막 유저 입력을 플레이어의 행동 또는 발화로 처리하고 장면을 진행한다."}`,
   ].filter(Boolean).join("\n\n");
   const controller = new AbortController();
@@ -71,6 +76,7 @@ export async function POST(request: Request) {
       messages,
       maxOutputTokens: generation.maxOutputTokens,
       reasoningLevel: generation.reasoningLevel,
+      temperature: generation.temperature,
       system: `${SYSTEM_PROMPT}\n\n${storyContext}\n\n${missionContext}`,
       signal: controller.signal,
     });
@@ -89,8 +95,13 @@ export async function POST(request: Request) {
   }
 }
 
+function resolveUserName(userNotes: string) {
+  const match = userNotes.match(/(?:지휘관\s*)?(?:이름|성명|호칭|name)\s*[:：=-]\s*([^\n,;]{1,24})/i);
+  return match?.[1]?.trim() || "지휘관님";
+}
+
 function validateBody(body: unknown):
-  | { ok: true; value: { provider: Provider; model: string; baseUrl: string; messages: Message[]; mission: unknown; mode: "story" | "ooc"; story: { masterPrompt: string; userNotes: string; ooc: string }; generation: { maxOutputTokens: number; reasoningLevel: ReasoningLevel } } }
+  | { ok: true; value: { provider: Provider; model: string; baseUrl: string; messages: Message[]; mission: unknown; mode: "story" | "ooc"; story: { masterPrompt: string; userNotes: string; ooc: string }; generation: { maxOutputTokens: number; reasoningLevel: ReasoningLevel; temperature: number | null } } }
   | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "요청 본문이 없습니다." };
   const value = body as Record<string, unknown>;
@@ -138,6 +149,10 @@ function validateBody(body: unknown):
   const reasoningLevel = ["none", "low", "medium", "high"].includes(String(rawGeneration.reasoningLevel))
     ? rawGeneration.reasoningLevel as ReasoningLevel
     : "medium";
+  const requestedTemperature = Number(rawGeneration.temperature);
+  const temperature = rawGeneration.temperature !== null && Number.isFinite(requestedTemperature)
+    ? Math.min(2, Math.max(0, requestedTemperature))
+    : null;
   return {
     ok: true,
     value: {
@@ -148,7 +163,7 @@ function validateBody(body: unknown):
       mission: value.mission,
       mode,
       story,
-      generation: { maxOutputTokens, reasoningLevel },
+      generation: { maxOutputTokens, reasoningLevel, temperature },
     },
   };
 }
@@ -183,6 +198,7 @@ async function callProvider({
   messages,
   maxOutputTokens,
   reasoningLevel,
+  temperature,
   system,
   signal,
 }: {
@@ -193,6 +209,7 @@ async function callProvider({
   messages: Message[];
   maxOutputTokens: number;
   reasoningLevel: ReasoningLevel;
+  temperature: number | null;
   system: string;
   signal: AbortSignal;
 }) {
@@ -206,7 +223,8 @@ async function callProvider({
         instructions: system,
         input: messages,
         max_output_tokens: maxOutputTokens,
-        reasoning: { effort: reasoningLevel },
+        ...(reasoningLevel === "none" ? {} : { reasoning: { effort: reasoningLevel } }),
+        ...(temperature === null ? {} : { temperature }),
         store: false,
       }),
     });
@@ -238,6 +256,7 @@ async function callProvider({
         max_tokens: maxOutputTokens,
         system,
         messages,
+        ...(temperature === null ? {} : { temperature }),
         ...(reasoningLevel === "none"
           ? {}
           : { output_config: { effort: reasoningLevel } }),
@@ -266,9 +285,8 @@ async function callProvider({
           })),
           generationConfig: {
             maxOutputTokens,
-            thinkingConfig: {
-              thinkingLevel: reasoningLevel === "none" ? "minimal" : reasoningLevel,
-            },
+            ...(temperature === null ? {} : { temperature }),
+            ...(reasoningLevel === "none" ? {} : { thinkingConfig: { thinkingLevel: reasoningLevel } }),
           },
         }),
       },
@@ -292,6 +310,7 @@ async function callProvider({
       model,
       messages: [{ role: "system", content: system }, ...messages],
       max_tokens: maxOutputTokens,
+      ...(temperature === null ? {} : { temperature }),
       ...(reasoningLevel === "none" ? {} : { reasoning_effort: reasoningLevel }),
     }),
   });

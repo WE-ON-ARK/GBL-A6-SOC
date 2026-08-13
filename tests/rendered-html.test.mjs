@@ -35,9 +35,10 @@ test("renders the Optimizer mission interface", async () => {
 });
 
 test("ships simulation and model generation controls", async () => {
-  const [client, route] = await Promise.all([
+  const [client, route, capabilitiesRoute] = await Promise.all([
     readFile(new URL("../app/mission-control.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/llm/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/llm/capabilities/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(client, /SCENARIO_COUNT = 1200/);
   assert.match(client, /ROUND_SECONDS = 5 \* 60/);
@@ -52,15 +53,23 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /function dominates/);
   assert.match(client, /최대 출력 토큰/);
   assert.match(client, /사고 레벨/);
-  assert.match(client, /PROMPT_VERSION = 2/);
-  assert.match(client, /여성향 근미래 재난 스릴러/);
+  assert.match(client, /PROMPT_VERSION = 3/);
+  assert.match(client, /여성향 RP 톤/);
+  assert.match(client, /ReactMarkdown/);
+  assert.match(client, /remarkGfm/);
+  assert.match(client, /MISSION_SEED_KEY/);
+  assert.match(client, /incidentVariants/);
+  assert.match(client, /extractUserName/);
+  assert.match(client, /temperature/);
   assert.match(client, /이번 Loop가 의미하는 것/);
   assert.match(client, /availableCards/);
   assert.match(client, /카드 조합 비교해줘/);
   assert.match(route, /게임 마스터, 카드 전략 코치, Loop 디브리퍼/);
-  assert.match(route, /기본 호칭은 '지휘관님'/);
-  assert.match(route, /CURRENT MISSION STATE \(유일한 사실 기준\)/);
+  assert.match(route, /resolveUserName/);
+  assert.match(route, /실시간 스냅샷/);
   assert.match(route, /max_output_tokens: maxOutputTokens/);
   assert.match(route, /thinkingLevel/);
   assert.match(route, /output_config/);
+  assert.match(capabilitiesRoute, /Gemini 모델 메타데이터/);
+  assert.match(capabilitiesRoute, /maxTemperature/);
 });
