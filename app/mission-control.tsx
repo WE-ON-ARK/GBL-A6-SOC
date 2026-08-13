@@ -188,6 +188,7 @@ function clamp(value: number, min: number, max: number) {
 type Outcome = Omit<LoopResult, "loop" | "paretoOptimal" | "dominatedBy">;
 
 const SCENARIO_COUNT = 1200;
+const ROUND_SECONDS = 5 * 60;
 
 function pseudoRandom(index: number, salt: number) {
   const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
@@ -346,9 +347,15 @@ export default function MissionControl() {
   const [settingsTab, setSettingsTab] = useState<"model" | "story">("model");
   const [chatMode, setChatMode] = useState<"story" | "ooc">("story");
   const [reportOpen, setReportOpen] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(ROUND_SECONDS);
+  const [timerDeadline, setTimerDeadline] = useState<number | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [llmConfig, setLlmConfig] = useState<LlmConfig>(defaultConfig);
   const chatLogRef = useRef<HTMLDivElement>(null);
+  const roundDurationRef = useRef(ROUND_SECONDS);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const localReplyTimersRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     try {
@@ -360,6 +367,14 @@ export default function MissionControl() {
   }, []);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    const requested = Number(new URLSearchParams(window.location.search).get("timerTest"));
+    if (!Number.isFinite(requested) || requested <= 0) return;
+    roundDurationRef.current = Math.min(ROUND_SECONDS, Math.floor(requested));
+    setSecondsLeft(roundDurationRef.current);
+  }, []);
+
+  useEffect(() => {
     const activeTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
     setTheme(activeTheme);
   }, []);
@@ -368,6 +383,33 @@ export default function MissionControl() {
     const log = chatLogRef.current;
     if (log) log.scrollTop = log.scrollHeight;
   }, [messages, sending]);
+
+  useEffect(() => {
+    if (timerDeadline === null || timedOut) return;
+
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining > 0) return;
+
+      setTimerDeadline(null);
+      setTimedOut(true);
+      setSending(false);
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+      localReplyTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      localReplyTimersRef.current.clear();
+    };
+
+    updateTimer();
+    const interval = window.setInterval(updateTimer, 250);
+    return () => window.clearInterval(interval);
+  }, [timerDeadline, timedOut]);
+
+  useEffect(() => () => {
+    activeRequestRef.current?.abort();
+    localReplyTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+  }, []);
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -398,8 +440,24 @@ export default function MissionControl() {
   const visibleMessages = connected
     ? messages.filter((message) => message.id !== "intro")
     : messages;
+  const timerRunning = timerDeadline !== null && !timedOut;
+  const formattedTime = `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
+  const startRoundTimer = () => {
+    if (timerDeadline === null && !timedOut) {
+      setTimerDeadline(Date.now() + secondsLeft * 1000);
+    }
+  };
+
+  const resetRoundTimer = () => {
+    setTimerDeadline(null);
+    setSecondsLeft(roundDurationRef.current);
+    setTimedOut(false);
+  };
 
   const toggleCard = (card: Strategy) => {
+    if (timedOut) return;
+    startRoundTimer();
     setSelected((current) => {
       if (current.includes(card.id)) {
         return current.filter((id) => id !== card.id);
@@ -410,7 +468,7 @@ export default function MissionControl() {
   };
 
   const runLoop = () => {
-    if (!canDeploy) return;
+    if (!canDeploy || timedOut) return;
     const result = simulate(loop, selectedCards);
     setResults((current) => [...current, result]);
 
@@ -427,16 +485,19 @@ export default function MissionControl() {
     ]);
 
     if (loop === 3) {
+      setTimerDeadline(null);
       setReportOpen(true);
     } else {
       setLoop((current) => current + 1);
+      resetRoundTimer();
     }
   };
 
   const submitMessage = async (event?: FormEvent) => {
     event?.preventDefault();
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || timedOut) return;
+    startRoundTimer();
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -452,7 +513,8 @@ export default function MissionControl() {
     setDraft("");
 
     if (!connected) {
-      window.setTimeout(() => {
+      const localTimer = window.setTimeout(() => {
+        localReplyTimersRef.current.delete(localTimer);
         setMessages((current) => [
           ...current,
           {
@@ -462,10 +524,14 @@ export default function MissionControl() {
           },
         ]);
       }, 320);
+      localReplyTimersRef.current.add(localTimer);
       return;
     }
 
     setSending(true);
+    const activeRequest = new AbortController();
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = activeRequest;
     try {
       const response = await fetch("/api/llm", {
         method: "POST",
@@ -473,6 +539,7 @@ export default function MissionControl() {
           "content-type": "application/json",
           "x-optimizer-api-key": llmConfig.apiKey,
         },
+        signal: activeRequest.signal,
         body: JSON.stringify({
           provider: llmConfig.provider,
           model: llmConfig.model,
@@ -507,6 +574,7 @@ export default function MissionControl() {
         { id: `ai-${Date.now()}`, role: "assistant", content: payload.text! },
       ]);
     } catch (error) {
+      if (activeRequest.signal.aborted) return;
       setMessages((current) => [
         ...current,
         {
@@ -516,7 +584,10 @@ export default function MissionControl() {
         },
       ]);
     } finally {
-      setSending(false);
+      if (activeRequestRef.current === activeRequest) {
+        activeRequestRef.current = null;
+        setSending(false);
+      }
     }
   };
 
@@ -538,11 +609,36 @@ export default function MissionControl() {
   };
 
   const resetMission = () => {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    localReplyTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    localReplyTimersRef.current.clear();
     setLoop(1);
     setSelected([]);
     setResults([]);
     setMessages(initialMessages);
     setReportOpen(false);
+    setSending(false);
+    resetRoundTimer();
+  };
+
+  const retryLoop = () => {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    localReplyTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    localReplyTimersRef.current.clear();
+    setSelected([]);
+    setDraft("");
+    setSending(false);
+    setMessages((current) => [
+      ...current,
+      {
+        id: `retry-${loop}-${Date.now()}`,
+        role: "assistant",
+        content: `Loop ${loop}을 다시 시작합니다. 첫 카드 선택 또는 첫 대화를 보내는 순간부터 5분이 흐릅니다.`,
+      },
+    ]);
+    resetRoundTimer();
   };
 
   return (
@@ -598,9 +694,20 @@ export default function MissionControl() {
             <div className="briefing-copy">
               <p className="signal-label"><span /> 실시간 사고 브리핑 · 중앙 전력망</p>
               <h2>도시는 5분 뒤<br /><span>멈춥니다.</span></h2>
-              <div className="countdown" aria-label="5분 남음">
-                05<span>:</span>00
+              <div
+                className={`countdown ${timerRunning ? "running" : ""} ${secondsLeft <= 60 ? "warning" : ""} ${timedOut ? "expired" : ""}`}
+                aria-label={`Loop ${loop} 남은 시간 ${formattedTime}`}
+                role="timer"
+              >
+                {formattedTime.slice(0, 2)}<span>:</span>{formattedTime.slice(3)}
               </div>
+              <p className="timer-note">
+                {timedOut
+                  ? `Loop ${loop} 종료 · 다시 시도해 주세요.`
+                  : timerRunning
+                    ? `Loop ${loop} 진행 중 · 카드 선택과 대화를 마치고 전략을 확정하세요.`
+                    : "첫 카드 선택 또는 첫 대화 전송 시 5분 타이머가 시작됩니다."}
+              </p>
               <p>
                 세 장의 카드와 세 번의 타임루프.<br />
                 예산 <strong>100</strong> 안에서 도시의 다음 5분을 다시 설계하세요.
@@ -674,6 +781,7 @@ export default function MissionControl() {
                     key={card.id}
                     onClick={() => toggleCard(card)}
                     aria-pressed={isSelected}
+                    disabled={timedOut}
                   >
                     <div className="card-topline">
                       <span>{card.code}</span>
@@ -753,7 +861,7 @@ export default function MissionControl() {
                   );
                 })}
               </div>
-              <button className="deploy-button" disabled={!canDeploy} onClick={runLoop}>
+              <button className="deploy-button" disabled={!canDeploy || timedOut} onClick={runLoop}>
                 <span>{loop === 3 ? "최종 전략 확정" : `LOOP ${loop} 실행`}</span>
                 <i aria-hidden="true">→</i>
               </button>
@@ -814,7 +922,7 @@ export default function MissionControl() {
 
           <div className="quick-prompts">
             {["이야기 이어가기", "지금 가장 위험한 곳", "전략 힌트"].map((prompt) => (
-              <button key={prompt} onClick={() => setDraft(prompt)}>{prompt}</button>
+              <button key={prompt} disabled={timedOut} onClick={() => setDraft(prompt)}>{prompt}</button>
             ))}
           </div>
 
@@ -822,14 +930,15 @@ export default function MissionControl() {
             <div className="composer-mode-row">
               <label htmlFor="commander-message">메시지</label>
               <span>
-                <button type="button" className={chatMode === "story" ? "active" : ""} onClick={() => setChatMode("story")}>STORY</button>
-                <button type="button" className={chatMode === "ooc" ? "active" : ""} onClick={() => setChatMode("ooc")}>OOC</button>
+                <button type="button" disabled={timedOut} className={chatMode === "story" ? "active" : ""} onClick={() => setChatMode("story")}>STORY</button>
+                <button type="button" disabled={timedOut} className={chatMode === "ooc" ? "active" : ""} onClick={() => setChatMode("ooc")}>OOC</button>
               </span>
             </div>
             <div>
               <textarea
                 id="commander-message"
                 value={draft}
+                disabled={timedOut}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
@@ -840,7 +949,7 @@ export default function MissionControl() {
                 placeholder={chatMode === "ooc" ? "서술 방식이나 설정을 OOC로 지시하세요…" : "행동을 선언하거나 이야기를 이어가세요…"}
                 rows={2}
               />
-              <button aria-label="메시지 전송" disabled={!draft.trim() || sending}>↗</button>
+              <button aria-label="메시지 전송" disabled={!draft.trim() || sending || timedOut}>↗</button>
             </div>
             <p>
               <span className={connected ? "connected" : ""} />
@@ -869,6 +978,18 @@ export default function MissionControl() {
           onClose={() => setReportOpen(false)}
           onReset={resetMission}
         />
+      )}
+
+      {timedOut && (
+        <div className="modal-backdrop timeout-backdrop" role="presentation">
+          <section className="timeout-report" role="alertdialog" aria-modal="true" aria-labelledby="timeout-title">
+            <div className="timeout-emblem" aria-hidden="true">00:00</div>
+            <p className="eyebrow">TIME LIMIT EXCEEDED / LOOP {loop}</p>
+            <h2 id="timeout-title">작전 시간이 종료됐습니다.</h2>
+            <p>진행 중인 모델 응답과 전략 입력을 중단했습니다.<br />같은 회차를 5분부터 다시 시작할 수 있습니다.</p>
+            <button className="retry-button" onClick={retryLoop}>LOOP {loop} 다시 시도 <span aria-hidden="true">↻</span></button>
+          </section>
+        </div>
       )}
     </main>
   );

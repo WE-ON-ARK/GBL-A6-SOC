@@ -280,6 +280,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .countdown span { color: var(--red); animation: blink 1s steps(1) infinite; }
+.countdown.running { color: var(--blue); }
+.countdown.warning, .countdown.expired { color: var(--red); }
+.timer-note { margin: -8px 0 18px !important; color: var(--tertiary) !important; font-size: 12px !important; line-height: 1.5 !important; }
 .briefing-copy > p:not(.signal-label) { max-width: 470px; margin: 0; color: var(--secondary); font-size: 15px; line-height: 1.72; }
 .briefing-copy > p strong { color: var(--label); font-weight: 650; }
 .briefing-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 22px; }
@@ -368,6 +371,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 .strategy-card:hover { border-color: rgba(0, 122, 255, 0.32); background: #fafcff; }
+.strategy-card:disabled { opacity: 0.48; cursor: not-allowed; }
+.strategy-card:disabled:hover { border-color: var(--line); background: var(--surface); }
 .strategy-card.selected { color: #fff; border-color: var(--blue); background: var(--blue); }
 .card-topline, .card-footer { display: flex; justify-content: space-between; align-items: center; }
 .card-topline span { color: var(--blue); font-size: 12px; font-weight: 650; }
@@ -487,6 +492,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .quick-prompts { flex: 0 0 auto; display: flex; gap: 5px; padding: 0 12px 9px; overflow-x: auto; }
 .quick-prompts button { min-height: 34px; flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--secondary); background: rgba(255, 255, 255, 0.6); cursor: pointer; font-size: 11px; }
 .quick-prompts button:hover { color: var(--blue); background: #fff; }
+.quick-prompts button:disabled, .composer-mode-row button:disabled { opacity: 0.4; cursor: not-allowed; }
 .chat-composer { flex: 0 0 auto; margin: 0 10px 10px; padding: 10px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255, 255, 255, 0.7); }
 .composer-mode-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .composer-mode-row label { color: var(--tertiary); font-size: 11px; }
@@ -564,6 +570,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .report-details { margin-top: 7px; text-align: left; }
 .report-details strong { font-size: 13px; }
 .reflection-box { margin-top: 12px; padding: 14px; border-left: 3px solid var(--blue); border-radius: 0 12px 12px 0; color: var(--secondary); background: rgba(0, 122, 255, 0.05); font-size: 12px; line-height: 1.6; text-align: left; }
+.timeout-report { width: min(460px, 100%); padding: 32px; border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 26px; color: var(--label); background: var(--glass-strong); backdrop-filter: blur(30px) saturate(120%); text-align: center; }
+.timeout-emblem { width: 92px; height: 60px; display: grid; place-items: center; margin: 0 auto 20px; border-radius: 18px; color: var(--red); background: rgba(215, 0, 21, 0.08); font-size: 20px; font-weight: 680; font-variant-numeric: tabular-nums; letter-spacing: -0.025em; }
+.timeout-report .eyebrow { margin: 0 0 8px; color: var(--red); }
+.timeout-report h2 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -0.035em; }
+.timeout-report > p:not(.eyebrow) { margin: 12px 0 24px; color: var(--secondary); font-size: 13px; line-height: 1.65; }
+.retry-button { min-width: 210px; min-height: 48px; padding: 0 18px; border: 0; border-radius: 14px; color: #fff; background: var(--blue); cursor: pointer; font-size: 13px; font-weight: 620; }
+.retry-button span { margin-left: 10px; }
 
 :root[data-theme="dark"] body,
 :root[data-theme="dark"] .mission-shell { background: var(--bg); }
@@ -585,7 +598,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 :root[data-theme="dark"] .deploy-bar,
 :root[data-theme="dark"] .advisor-panel,
 :root[data-theme="dark"] .settings-modal,
-:root[data-theme="dark"] .final-report { border-color: rgba(255, 255, 255, 0.16); }
+:root[data-theme="dark"] .final-report,
+:root[data-theme="dark"] .timeout-report { border-color: rgba(255, 255, 255, 0.16); }
 :root[data-theme="dark"] .objective-card,
 :root[data-theme="dark"] .message p,
 :root[data-theme="dark"] .quick-prompts button,

@@ -40,6 +40,10 @@ test("ships simulation and model generation controls", async () => {
     readFile(new URL("../app/api/llm/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(client, /SCENARIO_COUNT = 1200/);
+  assert.match(client, /ROUND_SECONDS = 5 \* 60/);
+  assert.match(client, /startRoundTimer/);
+  assert.match(client, /activeRequestRef\.current\?\.abort/);
+  assert.match(client, /LOOP \{loop\} 다시 시도/);
   assert.match(client, /function dominates/);
   assert.match(client, /최대 출력 토큰/);
   assert.match(client, /사고 레벨/);
