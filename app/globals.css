@@ -549,6 +549,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .report-close { float: right; }
 .report-emblem { width: 64px; height: 64px; display: grid; place-items: center; margin: 8px auto 18px; border-radius: 18px; color: var(--red); background: rgba(215, 0, 21, 0.07); font-size: 24px; }
 .report-emblem.success { color: var(--green); background: rgba(36, 138, 61, 0.08); }
+.report-emblem.success span {
+  width: 17px;
+  height: 29px;
+  border: solid currentColor;
+  border-width: 0 3px 3px 0;
+  font-size: 0;
+  transform: translate(-1px, -3px) rotate(45deg);
+}
 .final-report .eyebrow { margin: 0 0 7px; color: var(--blue); }
 .final-report h2 { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -0.04em; }
 .report-summary { max-width: 440px; margin: 10px auto 22px; color: var(--secondary); font-size: 12px; line-height: 1.6; }

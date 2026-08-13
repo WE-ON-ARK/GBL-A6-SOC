@@ -310,6 +310,9 @@ export default function MissionControl() {
   const latest = results.at(-1);
   const canDeploy = selected.length === 3 && totalCost <= 100;
   const connected = Boolean(llmConfig.apiKey && llmConfig.model);
+  const visibleMessages = connected
+    ? messages.filter((message) => message.id !== "intro")
+    : messages;
 
   const toggleCard = (card: Strategy) => {
     setSelected((current) => {
@@ -353,7 +356,10 @@ export default function MissionControl() {
       content: text,
       mode: chatMode,
     };
-    const nextMessages = [...messages, userMessage];
+    const nextMessages = [
+      ...messages.filter((message) => !connected || message.id !== "intro"),
+      userMessage,
+    ];
     setMessages(nextMessages);
     setDraft("");
 
@@ -692,7 +698,7 @@ export default function MissionControl() {
 
           <div className="chat-log" ref={chatLogRef} aria-live="polite">
             <div className="system-chip">Loop {loop} · 스토리</div>
-            {messages.map((message) => (
+            {visibleMessages.map((message) => (
               <div className={`message ${message.role}`} key={message.id}>
                 {message.role === "assistant" && <span>OPT</span>}
                 <div>
