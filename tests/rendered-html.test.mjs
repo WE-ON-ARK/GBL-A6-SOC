@@ -57,8 +57,14 @@ test("ships simulation and model generation controls", async () => {
   assert.match(client, /여성향 RP 톤/);
   assert.match(client, /ReactMarkdown/);
   assert.match(client, /remarkGfm/);
-  assert.match(client, /MISSION_SEED_KEY/);
+  assert.doesNotMatch(client, /MISSION_SEED_KEY/);
   assert.match(client, /incidentVariants/);
+  assert.match(client, /새로고침 시 재편성/);
+  assert.match(client, /loop-incident-card/);
+  assert.match(client, /connectionVerified/);
+  assert.match(client, /availableModels/);
+  assert.match(client, /API 키 검증 및 모델 불러오기/);
+  assert.match(client, /Loop \{loop\} · \{incident\.title\} 반영/);
   assert.match(client, /extractUserName/);
   assert.match(client, /temperature/);
   assert.match(client, /이번 Loop가 의미하는 것/);
@@ -70,6 +76,8 @@ test("ships simulation and model generation controls", async () => {
   assert.match(route, /max_output_tokens: maxOutputTokens/);
   assert.match(route, /thinkingLevel/);
   assert.match(route, /output_config/);
-  assert.match(capabilitiesRoute, /Gemini 모델 메타데이터/);
+  assert.match(capabilitiesRoute, /Gemini API/);
   assert.match(capabilitiesRoute, /maxTemperature/);
+  assert.match(capabilitiesRoute, /api\.openai\.com\/v1\/models/);
+  assert.match(capabilitiesRoute, /api\.anthropic\.com\/v1\/models/);
 });

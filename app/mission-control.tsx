@@ -76,6 +76,8 @@ type LlmConfig = {
   supportsTemperature: boolean;
   supportsReasoning: boolean;
   capabilitiesFor: string;
+  connectionVerified: boolean;
+  availableModels: ModelOption[];
   rememberTab: boolean;
   masterPrompt: string;
   userNotes: string;
@@ -83,7 +85,6 @@ type LlmConfig = {
 };
 
 const PROMPT_VERSION = 3;
-const MISSION_SEED_KEY = "optimizer-mission-seed";
 const LEGACY_MASTER_PROMPT = `당신은 인터랙티브 재난 스릴러 「재난 5분 전, 옵티마이저」의 게임 마스터다.
 플레이어는 도시 재난대응본부의 지휘관이며, AI 옵티마이저만 이전 타임루프의 결과를 기억한다.
 플레이어의 감정이나 결정을 대신 서술하지 말고, 선택의 결과와 새롭게 관찰 가능한 정보만 제시한다.
@@ -321,6 +322,8 @@ const defaultConfig: LlmConfig = {
   supportsTemperature: false,
   supportsReasoning: true,
   capabilitiesFor: "openai:gpt-5.6-terra",
+  connectionVerified: false,
+  availableModels: [],
   rememberTab: true,
   masterPrompt: DEFAULT_MASTER_PROMPT,
   userNotes: "",
@@ -334,11 +337,13 @@ const providerLabels: Record<Provider, string> = {
   compatible: "OpenAI 호환",
 };
 
-const modelPlaceholders: Record<Provider, string> = {
-  openai: "예: gpt-5.6-terra",
-  anthropic: "Claude 모델 ID를 입력하세요",
-  gemini: "Gemini 모델 ID를 입력하세요",
-  compatible: "서버에서 제공하는 모델 ID",
+type ModelOption = {
+  id: string;
+  label: string;
+  temperature: boolean;
+  reasoning: boolean;
+  maxTemperature: number;
+  maxOutputTokens: number | null;
 };
 
 const reasoningLabels: Record<ReasoningLevel, string> = {
@@ -394,13 +399,31 @@ type NetworkLinkStyle = {
   transform: string;
 };
 
-function CityNetworkMap() {
+function CityNetworkMap({
+  loop,
+  incident,
+  selectedCards,
+  latest,
+}: {
+  loop: number;
+  incident: IncidentVariant;
+  selectedCards: Strategy[];
+  latest?: LoopResult;
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
   const powerRef = useRef<HTMLButtonElement>(null);
   const tunnelRef = useRef<HTMLButtonElement>(null);
   const hospitalRef = useRef<HTMLButtonElement>(null);
   const shelterRef = useRef<HTMLButtonElement>(null);
   const [links, setLinks] = useState<Record<string, NetworkLinkStyle>>({});
+  const hasCard = (id: string) => selectedCards.some((card) => card.id === id);
+  const tunnelImproved = hasCard("tunnel") || hasCard("signal") || Boolean(latest && latest.bottleneckCapacity > 42);
+  const powerProtected = hasCard("power") || Boolean(latest?.cards.includes("power"));
+  const shelterProtected = hasCard("shelter") || Boolean(latest?.cards.includes("shelter"));
+  const hospitalAtRisk = incident.id === "hospital-surge" && !powerProtected;
+  const shelterAtRisk = ["south-flood", "rumor-wave"].includes(incident.id) && !shelterProtected;
+  const powerAtRisk = ["hospital-surge", "signal-noise"].includes(incident.id) && !powerProtected;
+  const capacity = latest?.bottleneckCapacity ?? clamp(42 + incident.bottleneckShift + (hasCard("tunnel") ? 26 : 0) + (hasCard("signal") ? 14 : 0), 30, 99);
 
   useLayoutEffect(() => {
     const map = mapRef.current;
@@ -453,23 +476,23 @@ function CityNetworkMap() {
     <div className="city-map" ref={mapRef} aria-label="도시 대피 네트워크">
       <div className="map-grid" />
       <div className="network-links" aria-hidden="true">
-        <span className="network-link power-to-tunnel" style={links.power} />
-        <span className="network-link tunnel-to-hospital" style={links.hospital} />
-        <span className="network-link tunnel-to-shelter" style={links.shelter} />
+        <span className={`network-link power-to-tunnel ${powerAtRisk ? "degraded" : powerProtected ? "recovered" : ""}`} style={links.power} />
+        <span className={`network-link tunnel-to-hospital ${hospitalAtRisk ? "degraded" : powerProtected ? "recovered" : ""}`} style={links.hospital} />
+        <span className={`network-link tunnel-to-shelter ${shelterAtRisk ? "degraded" : shelterProtected ? "recovered" : ""}`} style={links.shelter} />
       </div>
-      <button ref={powerRef} className="map-node power" aria-label="중앙 발전소: 위험">
-        <i /><span>P-01</span><small>발전소</small>
+      <button ref={powerRef} className={`map-node power ${powerAtRisk ? "warning" : powerProtected ? "resolved" : ""}`} aria-label={`중앙 발전소: ${powerAtRisk ? "위험" : powerProtected ? "보호됨" : "감시 중"}`}>
+        <i /><span>P-01</span><small>{powerAtRisk ? "전력 불안" : powerProtected ? "보호됨" : "발전소"}</small>
       </button>
-      <button ref={tunnelRef} className="map-node tunnel critical" aria-label="C-07 터널: 병목">
-        <i /><span>C-07</span><small>최소 절단 · 42</small>
+      <button ref={tunnelRef} className={`map-node tunnel ${tunnelImproved ? "resolved" : "critical"}`} aria-label={`C-07 터널: ${tunnelImproved ? "용량 개선" : "병목"}`}>
+        <i /><span>C-07</span><small>{tunnelImproved ? "개선 용량" : "최소 절단"} · {capacity}</small>
       </button>
-      <button ref={hospitalRef} className="map-node hospital" aria-label="병원">
-        <i /><span>H-02</span><small>병원</small>
+      <button ref={hospitalRef} className={`map-node hospital ${hospitalAtRisk ? "warning" : powerProtected ? "resolved" : ""}`} aria-label={`H-02 병원: ${hospitalAtRisk ? "위험" : powerProtected ? "전력 확보" : "감시 중"}`}>
+        <i /><span>H-02</span><small>{hospitalAtRisk ? "전력 위험" : powerProtected ? "전력 확보" : "병원"}</small>
       </button>
-      <button ref={shelterRef} className="map-node shelter" aria-label="대피소">
-        <i /><span>S-09</span><small>대피소</small>
+      <button ref={shelterRef} className={`map-node shelter ${shelterAtRisk ? "warning" : shelterProtected ? "resolved" : ""}`} aria-label={`S-09 대피소: ${shelterAtRisk ? "접근 위험" : shelterProtected ? "수용 확장" : "감시 중"}`}>
+        <i /><span>S-09</span><small>{shelterAtRisk ? "접근 위험" : shelterProtected ? "수용 확장" : "대피소"}</small>
       </button>
-      <div className="map-status"><span className="pulse" />도시 네트워크 · 실시간</div>
+      <div className="map-status"><span className="pulse" />Loop {loop} · {incident.title} 반영</div>
       <div className="map-legend">
         <span><i className="legend-safe" /> 정상</span>
         <span><i className="legend-risk" /> 위험</span>
@@ -664,6 +687,7 @@ export default function MissionControl() {
   const [timedOut, setTimedOut] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [llmConfig, setLlmConfig] = useState<LlmConfig>(defaultConfig);
+  const [connectionChecking, setConnectionChecking] = useState(false);
   const [missionSeed, setMissionSeed] = useState(0);
   const chatLogRef = useRef<HTMLDivElement>(null);
   const roundDurationRef = useRef(ROUND_SECONDS);
@@ -691,6 +715,7 @@ export default function MissionControl() {
           supportsTemperature: parsed.capabilitiesFor ? Boolean(parsed.supportsTemperature) : capabilities.temperature,
           supportsReasoning: parsed.capabilitiesFor ? Boolean(parsed.supportsReasoning) : capabilities.reasoning,
           capabilitiesFor: parsed.capabilitiesFor ?? `${parsed.provider ?? defaultConfig.provider}:${parsed.model ?? defaultConfig.model}`,
+          connectionVerified: false,
           masterPrompt,
           ooc,
         };
@@ -703,14 +728,43 @@ export default function MissionControl() {
   }, []);
 
   useEffect(() => {
+    if (!llmConfig.apiKey || llmConfig.connectionVerified || connectionChecking) return;
+    let cancelled = false;
+    setConnectionChecking(true);
+    void fetch("/api/llm/capabilities", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-optimizer-api-key": llmConfig.apiKey },
+      body: JSON.stringify({ provider: llmConfig.provider, baseUrl: llmConfig.baseUrl }),
+    }).then(async (response) => {
+      const payload = await response.json() as { verified?: boolean; models?: ModelOption[] };
+      if (cancelled || !response.ok || !payload.verified || !payload.models?.length) return;
+      setLlmConfig((current) => {
+        const model = payload.models!.find((option) => option.id === current.model) ?? payload.models![0];
+        const next = {
+          ...current,
+          model: model.id,
+          availableModels: payload.models!,
+          supportsTemperature: model.temperature,
+          supportsReasoning: model.temperature && model.reasoning,
+          capabilitiesFor: `${current.provider}:${model.id}`,
+          connectionVerified: true,
+        };
+        try {
+          if (next.rememberTab) window.sessionStorage.setItem("optimizer-llm-config", JSON.stringify(next));
+        } catch {
+          // The verified in-memory connection remains available.
+        }
+        return next;
+      });
+    }).finally(() => {
+      if (!cancelled) setConnectionChecking(false);
+    });
+    return () => { cancelled = true; };
+  }, [llmConfig.apiKey, llmConfig.baseUrl, llmConfig.connectionVerified, llmConfig.provider, connectionChecking]);
+
+  useEffect(() => {
     try {
-      const stored = Number(window.sessionStorage.getItem(MISSION_SEED_KEY));
-      if (Number.isInteger(stored) && stored > 0) {
-        setMissionSeed(stored);
-        return;
-      }
       const seed = window.crypto.getRandomValues(new Uint32Array(1))[0] || Date.now();
-      window.sessionStorage.setItem(MISSION_SEED_KEY, String(seed));
       setMissionSeed(seed);
     } catch {
       setMissionSeed(Date.now());
@@ -809,7 +863,7 @@ export default function MissionControl() {
   const totalCost = selectedCards.reduce((sum, card) => sum + card.cost, 0);
   const latest = results.at(-1);
   const canDeploy = selected.length === 3 && totalCost <= 100;
-  const connected = Boolean(llmConfig.apiKey && llmConfig.model);
+  const connected = Boolean(llmConfig.connectionVerified && llmConfig.apiKey && llmConfig.model);
   const latestCards = latest
     ? strategies.filter((card) => latest.cards.includes(card.id))
     : [];
@@ -1026,6 +1080,7 @@ export default function MissionControl() {
     const supportsReasoning = capabilities.temperature && capabilities.reasoning;
     const normalizedConfig = {
       ...config,
+      connectionVerified: Boolean(config.connectionVerified && config.capabilitiesFor === `${config.provider}:${config.model.trim()}`),
       supportsTemperature: capabilities.temperature,
       supportsReasoning,
       reasoningLevel: supportsReasoning ? config.reasoningLevel : "none" as ReasoningLevel,
@@ -1065,11 +1120,6 @@ export default function MissionControl() {
       }
     })();
     setMissionSeed(nextSeed);
-    try {
-      window.sessionStorage.setItem(MISSION_SEED_KEY, String(nextSeed));
-    } catch {
-      // The in-memory seed still creates a fresh mission.
-    }
     resetRoundTimer();
   };
 
@@ -1131,8 +1181,8 @@ export default function MissionControl() {
           <button className="connection-button" onClick={() => { setSettingsTab("model"); setSettingsOpen(true); }}>
             <span className={`connection-dot ${connected ? "online" : ""}`} />
             <span>
-              <small>{connected ? "AI 연결됨" : "로컬 데모"}</small>
-              {connected ? llmConfig.model : "모델 연결"}
+              <small>{connectionChecking ? "연결 확인 중" : connected ? "AI 연결됨" : "로컬 데모"}</small>
+              {connectionChecking ? "API 키 검증 중" : connected ? llmConfig.model : "모델 연결"}
             </span>
             <b aria-hidden="true">⚙</b>
           </button>
@@ -1159,12 +1209,6 @@ export default function MissionControl() {
                     ? `Loop ${loop} 진행 중 · 카드 선택과 대화를 마치고 전략을 확정하세요.`
                     : "첫 카드 선택 또는 첫 대화 전송 시 5분 타이머가 시작됩니다."}
               </p>
-              <div className="incident-brief" aria-live="polite">
-                <span>이번 Loop 변수</span>
-                <strong>{currentIncident.title}</strong>
-                <p>{currentIncident.description}</p>
-                <small>{currentIncident.hint}</small>
-              </div>
               <p>
                 세 장의 카드와 세 번의 타임루프.<br />
                 예산 <strong>100</strong> 안에서 도시의 다음 5분을 다시 설계하세요.
@@ -1176,7 +1220,17 @@ export default function MissionControl() {
               </div>
             </div>
 
-            <CityNetworkMap />
+            <CityNetworkMap loop={loop} incident={currentIncident} selectedCards={selectedCards} latest={latest} />
+          </section>
+
+          <section className="loop-incident-card" aria-label={`Loop ${loop} 돌발 변수`}>
+            <span>이번 Loop 변수</span>
+            <div>
+              <strong>{currentIncident.title}</strong>
+              <small>Loop {loop} · 새로고침 시 재편성</small>
+            </div>
+            <p>{currentIncident.description}</p>
+            <em>{currentIncident.hint}</em>
           </section>
 
           <section className="strategy-section">
@@ -1296,7 +1350,7 @@ export default function MissionControl() {
               <img src="/optimizer-mark.svg" alt="" />
             </div>
             <div>
-              <p>{connected ? "생성형 AI 스토리 가이드" : "규칙 기반 스토리 가이드"}</p>
+              <p>{connectionChecking ? "모델 연결 확인 중" : connected ? "생성형 AI 스토리 가이드" : "규칙 기반 스토리 가이드"}</p>
               <h2>옵티마이저와 대화</h2>
             </div>
             <button
@@ -1306,7 +1360,7 @@ export default function MissionControl() {
               프롬프트
             </button>
             <span className={`agent-state ${connected ? "online" : "local"}`}>
-              <i /> {connected ? "AI 연결됨" : "로컬 데모"}
+              <i /> {connectionChecking ? "확인 중" : connected ? "AI 연결됨" : "로컬 데모"}
             </span>
           </div>
 
@@ -1474,33 +1528,38 @@ function LlmSettings({
       supportsTemperature: heuristicCapabilities(provider, provider === "openai" ? "gpt-5.6-terra" : provider === "gemini" ? "gemini-3.6-flash" : "").temperature,
       supportsReasoning: heuristicCapabilities(provider, provider === "openai" ? "gpt-5.6-terra" : provider === "gemini" ? "gemini-3.6-flash" : "").reasoning,
       capabilitiesFor: `${provider}:${provider === "openai" ? "gpt-5.6-terra" : provider === "gemini" ? "gemini-3.6-flash" : ""}`,
+      connectionVerified: false,
+      availableModels: [],
     }));
     setCapabilityMessage("");
   };
 
   const checkCapabilities = async () => {
-    if (!draft.apiKey.trim() || !draft.model.trim()) return;
+    if (!draft.apiKey.trim() || (draft.provider === "compatible" && !draft.baseUrl.trim())) return;
     setCheckingCapabilities(true);
     setCapabilityMessage("");
     try {
       const response = await fetch("/api/llm/capabilities", {
         method: "POST",
         headers: { "content-type": "application/json", "x-optimizer-api-key": draft.apiKey },
-        body: JSON.stringify({ provider: draft.provider, model: draft.model }),
+        body: JSON.stringify({ provider: draft.provider, baseUrl: draft.baseUrl }),
       });
-      const payload = await response.json() as { temperature?: boolean; reasoning?: boolean; maxTemperature?: number; maxOutputTokens?: number | null; source?: string; error?: string };
-      if (!response.ok) throw new Error(payload.error || "지원 기능을 확인하지 못했습니다.");
+      const payload = await response.json() as { verified?: boolean; models?: ModelOption[]; source?: string; error?: string };
+      if (!response.ok || !payload.verified) throw new Error(payload.error || "API 키를 검증하지 못했습니다.");
+      const models = payload.models ?? [];
+      if (!models.length) throw new Error("이 키로 사용할 수 있는 지원 모델을 찾지 못했습니다.");
       setDraft((current) => ({
         ...current,
-        supportsTemperature: Boolean(payload.temperature),
-        supportsReasoning: Boolean(payload.reasoning) && Boolean(payload.temperature),
-        capabilitiesFor: `${current.provider}:${current.model.trim()}`,
-        temperature: Math.min(payload.maxTemperature ?? 2, current.temperature),
-        maxOutputTokens: payload.maxOutputTokens ? Math.min(current.maxOutputTokens, payload.maxOutputTokens) : current.maxOutputTokens,
-        reasoningLevel: payload.reasoning && payload.temperature ? current.reasoningLevel : "none",
+        availableModels: models,
+        model: models.some((model) => model.id === current.model) ? current.model : models[0].id,
+        supportsTemperature: (models.find((model) => model.id === current.model) ?? models[0]).temperature,
+        supportsReasoning: (models.find((model) => model.id === current.model) ?? models[0]).reasoning,
+        capabilitiesFor: `${current.provider}:${models.some((model) => model.id === current.model) ? current.model : models[0].id}`,
+        connectionVerified: true,
       }));
-      setCapabilityMessage(`${payload.source || "모델 정보"} 기준 · 온도 ${payload.temperature ? "지원" : "미지원"} · 사고 기능 ${payload.reasoning ? "지원" : "미지원"}${payload.reasoning && !payload.temperature ? " (온도 미지원으로 조절 비활성)" : ""}`);
+      setCapabilityMessage(`${payload.source || "공급자 API"}에서 키를 검증했습니다. 사용할 모델을 선택해 주세요.`);
     } catch (error) {
+      setDraft((current) => ({ ...current, connectionVerified: false, availableModels: [] }));
       setCapabilityMessage(error instanceof Error ? error.message : "지원 기능을 확인하지 못했습니다.");
     } finally {
       setCheckingCapabilities(false);
@@ -1552,32 +1611,12 @@ function LlmSettings({
               ))}
             </div>
 
-            <label className="field-label">
-              모델 ID
-              <input
-                value={draft.model}
-                onChange={(event) => {
-                  const model = event.target.value;
-                  const capabilities = heuristicCapabilities(draft.provider, model);
-                  setDraft({ ...draft, model, supportsTemperature: capabilities.temperature, supportsReasoning: capabilities.reasoning, capabilitiesFor: "" });
-                  setCapabilityMessage("");
-                }}
-                placeholder={modelPlaceholders[draft.provider]}
-                autoComplete="off"
-              />
-              <small>목록에 제한되지 않습니다. 공급자가 제공하는 정확한 모델 ID를 입력하세요.</small>
-              <button type="button" className="capability-check" onClick={() => void checkCapabilities()} disabled={checkingCapabilities || !draft.apiKey.trim() || !draft.model.trim()}>
-                {checkingCapabilities ? "확인 중…" : "모델 지원 기능 확인"}
-              </button>
-              {capabilityMessage && <small className="capability-result">{capabilityMessage}</small>}
-            </label>
-
             {draft.provider === "compatible" && (
               <label className="field-label">
                 API Base URL
                 <input
                   value={draft.baseUrl}
-                  onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })}
+                  onChange={(event) => { setDraft({ ...draft, baseUrl: event.target.value, connectionVerified: false, availableModels: [] }); setCapabilityMessage(""); }}
                   placeholder="https://your-provider.example/v1"
                   inputMode="url"
                   autoComplete="url"
@@ -1592,13 +1631,34 @@ function LlmSettings({
                 <input
                   type="password"
                   value={draft.apiKey}
-                  onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })}
+                  onChange={(event) => { setDraft({ ...draft, apiKey: event.target.value, connectionVerified: false, availableModels: [] }); setCapabilityMessage(""); }}
                   placeholder="API 키를 붙여넣으세요"
                   autoComplete="off"
                   spellCheck={false}
                 />
                 <span>{draft.apiKey ? "입력됨" : "필수"}</span>
               </div>
+            </label>
+
+            <button type="button" className="verify-connection" onClick={() => void checkCapabilities()} disabled={checkingCapabilities || !draft.apiKey.trim() || (draft.provider === "compatible" && !draft.baseUrl.trim())}>
+              {checkingCapabilities ? "API 키 검증 중…" : draft.connectionVerified ? "API 키 다시 검증" : "API 키 검증 및 모델 불러오기"}
+            </button>
+            {capabilityMessage && <p className={`connection-result ${draft.connectionVerified ? "success" : "error"}`}>{capabilityMessage}</p>}
+
+            <label className="field-label">
+              모델
+              <select
+                value={draft.model}
+                disabled={!draft.connectionVerified || !draft.availableModels.length}
+                onChange={(event) => {
+                  const model = draft.availableModels.find((option) => option.id === event.target.value)!;
+                  setDraft({ ...draft, model: model.id, supportsTemperature: model.temperature, supportsReasoning: model.temperature && model.reasoning, capabilitiesFor: `${draft.provider}:${model.id}`, temperature: Math.min(model.maxTemperature, draft.temperature), maxOutputTokens: model.maxOutputTokens ? Math.min(draft.maxOutputTokens, model.maxOutputTokens) : draft.maxOutputTokens, reasoningLevel: model.temperature && model.reasoning ? draft.reasoningLevel : "none" });
+                }}
+              >
+                {!draft.availableModels.length && <option value={draft.model}>API 키 검증 후 모델을 불러옵니다</option>}
+                {draft.availableModels.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+              </select>
+              <small>검증된 API 키로 실제 사용할 수 있는 모델만 표시합니다.</small>
             </label>
 
             <div className="generation-grid">
@@ -1711,7 +1771,7 @@ function LlmSettings({
           <button
             className="primary"
             onClick={() => onSave(draft)}
-            disabled={tab === "model" && (!draft.apiKey.trim() || !draft.model.trim() || (draft.provider === "compatible" && !draft.baseUrl.trim()))}
+            disabled={tab === "model" && (!draft.connectionVerified || !draft.apiKey.trim() || !draft.model.trim() || (draft.provider === "compatible" && !draft.baseUrl.trim()))}
           >
             {tab === "model" ? "연결 설정 저장" : "프롬프트 저장"} <span>→</span>
           </button>

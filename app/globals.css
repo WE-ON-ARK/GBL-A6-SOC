@@ -285,11 +285,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .timer-note { margin: -8px 0 18px !important; color: var(--tertiary) !important; font-size: 12px !important; line-height: 1.5 !important; }
 .briefing-copy > p:not(.signal-label) { max-width: 470px; margin: 0; color: var(--secondary); font-size: 15px; line-height: 1.72; }
 .briefing-copy > p strong { color: var(--label); font-weight: 650; }
-.incident-brief { max-width: 480px; margin: 18px 0; padding: 13px 14px; border-left: 3px solid var(--blue); border-radius: 0 14px 14px 0; background: rgba(255, 255, 255, 0.58); backdrop-filter: blur(16px); }
-.incident-brief span { display: block; color: var(--blue); font-size: 10px; font-weight: 650; letter-spacing: 0.04em; }
-.incident-brief strong { display: block; margin-top: 3px; font-size: 14px; }
-.incident-brief p { margin: 4px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
-.incident-brief small { display: block; margin-top: 6px; color: var(--label); font-size: 11px; }
 .briefing-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 22px; }
 .briefing-tags span { padding: 8px 12px; border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 999px; color: #49494e; background: rgba(255, 255, 255, 0.64); backdrop-filter: blur(14px); font-size: 12px; }
 
@@ -307,6 +302,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .network-links { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
 .network-link { position: absolute; height: 2px; border-radius: 999px; transform-origin: 0 50%; background: rgba(0, 122, 255, 0.56); }
 .network-link::after { position: absolute; top: 50%; right: -1px; width: 7px; height: 7px; border: 2px solid var(--blue); border-left: 0; border-bottom: 0; content: ""; transform: translateY(-50%) rotate(45deg); }
+.network-link.degraded { background: rgba(215, 0, 21, 0.58); }
+.network-link.degraded::after { border-color: var(--red); }
+.network-link.recovered { background: rgba(36, 138, 61, 0.62); }
+.network-link.recovered::after { border-color: var(--green); }
 .power-to-tunnel, .tunnel-to-hospital, .tunnel-to-shelter { opacity: 0; }
 .power-to-tunnel[style], .tunnel-to-hospital[style], .tunnel-to-shelter[style] { opacity: 1; }
 .map-node {
@@ -336,6 +335,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .map-node.shelter { right: 8%; bottom: 15%; }
 .map-node.critical { border-color: rgba(215, 0, 21, 0.22); background: rgba(255, 240, 240, 0.82); }
 .map-node.critical i { color: var(--red); }
+.map-node.warning { border-color: rgba(198, 106, 0, 0.34); background: rgba(255, 247, 232, 0.84); }
+.map-node.warning i { color: var(--orange); }
+.map-node.resolved { border-color: rgba(36, 138, 61, 0.3); background: rgba(236, 249, 239, 0.84); }
+.map-node.resolved i { color: var(--green); }
 .map-status { position: absolute; top: 20px; left: 20px; display: flex; align-items: center; gap: 8px; color: var(--secondary); font-size: 12px; font-weight: 560; }
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 .map-legend { position: absolute; right: 18px; bottom: 17px; display: flex; gap: 12px; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.88); border-radius: 999px; color: var(--secondary); background: rgba(255, 255, 255, 0.66); backdrop-filter: blur(12px); font-size: 11px; }
@@ -346,6 +349,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .legend-bottleneck { background: var(--red); }
 
 .strategy-section { position: relative; padding: clamp(54px, 6vw, 80px) clamp(22px, 4vw, 56px) 32px; }
+.loop-incident-card { display: grid; grid-template-columns: minmax(120px, 0.55fr) minmax(180px, 0.8fr) minmax(260px, 1.5fr); align-items: center; gap: 20px; margin: 24px clamp(22px, 4vw, 56px) 0; padding: 28px 30px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+.loop-incident-card > span { align-self: start; color: var(--blue); font-size: 13px; font-weight: 620; }
+.loop-incident-card > div { min-width: 0; }
+.loop-incident-card strong { display: block; font-size: 21px; font-weight: 650; letter-spacing: -0.035em; }
+.loop-incident-card small { display: block; margin-top: 5px; color: var(--tertiary); font-size: 11px; }
+.loop-incident-card p { margin: 0; color: var(--secondary); font-size: 14px; line-height: 1.65; }
+.loop-incident-card em { grid-column: 3; color: var(--label); font-size: 12px; font-style: normal; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .section-heading .eyebrow { margin: 0 0 8px; color: var(--blue); }
 .section-heading h2 { margin: 0; font-size: clamp(34px, 3.2vw, 46px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.12; text-wrap: balance; }
@@ -551,6 +561,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .capability-check { min-height: 34px; margin-top: 8px; padding: 6px 10px; border: 0; border-radius: 9px; color: var(--blue); background: rgba(0, 122, 255, 0.08); cursor: pointer; font-size: 11px; }
 .capability-check:disabled { opacity: 0.4; cursor: not-allowed; }
 .capability-result { color: var(--blue) !important; }
+.verify-connection { width: 100%; min-height: 44px; margin-top: 12px; border: 0; border-radius: 12px; color: #fff; background: var(--blue); cursor: pointer; font-size: 12px; font-weight: 620; }
+.verify-connection:disabled { opacity: 0.35; cursor: not-allowed; }
+.connection-result { margin: 8px 0 0; padding: 9px 11px; border-radius: 10px; font-size: 11px; }
+.connection-result.success { color: var(--green); background: rgba(36, 138, 61, 0.08); }
+.connection-result.error { color: var(--red); background: rgba(215, 0, 21, 0.07); }
 .secret-field { position: relative; }
 .secret-field input { padding-right: 65px; }
 .secret-field span { position: absolute; right: 10px; top: 50%; color: var(--blue); font-size: 11px; }
@@ -616,6 +631,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 :root[data-theme="dark"] .city-map { border-color: rgba(255, 255, 255, 0.16); background: rgba(28, 28, 30, 0.54); }
 :root[data-theme="dark"] .map-node { border-color: rgba(255, 255, 255, 0.18); background: rgba(44, 44, 46, 0.78); }
 :root[data-theme="dark"] .map-node.critical { border-color: rgba(255, 69, 58, 0.36); background: rgba(55, 28, 29, 0.82); }
+:root[data-theme="dark"] .map-node.warning { border-color: rgba(255, 159, 10, 0.36); background: rgba(56, 40, 20, 0.82); }
+:root[data-theme="dark"] .map-node.resolved { border-color: rgba(48, 209, 88, 0.32); background: rgba(22, 54, 31, 0.82); }
 :root[data-theme="dark"] .strategy-card:hover { background: #242427; }
 :root[data-theme="dark"] .deploy-bar,
 :root[data-theme="dark"] .advisor-panel,
@@ -632,7 +649,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 :root[data-theme="dark"] .prompt-field textarea { background: rgba(44, 44, 46, 0.72); }
 :root[data-theme="dark"] .message-body { color: var(--label); }
 :root[data-theme="dark"] .message.user .message-body { color: #fff; background: var(--blue); }
-:root[data-theme="dark"] .incident-brief { background: rgba(28, 28, 30, 0.62); }
+:root[data-theme="dark"] .loop-incident-card { background: var(--surface); }
 :root[data-theme="dark"] .quick-prompts button:hover,
 :root[data-theme="dark"] .composer-mode-row button.active,
 :root[data-theme="dark"] .settings-tabs button.active { color: var(--label); background: #3a3a3c; }
@@ -684,6 +701,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .countdown { font-size: clamp(62px, 15vw, 82px); }
   .city-map { min-height: 350px; border-radius: 24px; }
   .strategy-section { padding: 46px 14px 28px; }
+  .loop-incident-card { grid-template-columns: 1fr; gap: 7px; margin: 12px 12px 0; padding: 22px; border-radius: 20px; }
+  .loop-incident-card > span { margin-bottom: 6px; }
+  .loop-incident-card em { grid-column: 1; margin-top: 4px; }
   .section-heading { align-items: flex-start; }
   .strategy-grid { grid-template-columns: 1fr; }
   .strategy-card { min-height: 196px; }
